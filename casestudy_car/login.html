@@ -6,6 +6,41 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
 <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@1,700&display=swap" rel="stylesheet">
+<style>
+    form {
+      background-color: rgba(73, 233, 233, 0.507);
+      }
+    input[type=text], input[type=password] {
+      width: 100%;
+      padding: 12px 20px;
+      margin: 8px 0;
+      display: inline-block;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: #1dbd82;
+      color: white;
+      padding: 14px 20px;
+      margin: 8px 0;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:hover {
+      opacity: 0.8;
+    }
+
+    .cancelbtn {
+      width: auto;
+      padding: 10px 18px;
+      background-color: #f44336;
+    }
+
+</style>
+
 </head>
 <body>
 
@@ -22,10 +57,32 @@
            <option>Madurai</option>
            </select></li>
          <li style="float: right;"> <a  class="active" href="login.html">Login</a></li>
-       </ul>
+    </ul>
+
+    <h2>Login</h2>
     
-
-
+    <form action="home.html" method="get">
+      <div class="container">
+        <label for="uname"><b>Username</b></label>
+        <input type="text" placeholder="Enter Username" name="uname" required>
+    
+        <label for="psw"><b>Password</b></label>
+        <input type="password" placeholder="Enter Password" name="psw" required>
+            
+        <button type="submit">Login</button>
+        <label>
+          <input type="checkbox" checked="checked" name="remember"> Remember me
+        </label>
+      </div>
+    
+      <div class="container" style="background-color:#f1f1f1">
+        <button type="button" class="cancelbtn">Cancel</button>
+        Forgot <a href="mailto:dealer@carbee.in">password?</a>
+        <span>(contact us)</span>
+      </div>
+    </form>
+    
+<br><br>
        <footer>
         <div style="display:inline;float: left;position: relative; margin-left: 10px; margin-right: 10px;">
             <strong><p style="color: rgb(2, 0, 0);">Contact Number: <span style="color: white;">+91-7878787878</span><br>
