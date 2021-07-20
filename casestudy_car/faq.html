@@ -1,0 +1,215 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carbee-faq</title>
+    <link rel="shortcut icon" href="favicon.ico">
+    <link rel="stylesheet" href="css/styleold.css">
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Doppio+One&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/b8c6c27289.js" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <style>
+        a {
+            text-decoration: none;
+            font-size: 20px;
+            font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+</head>
+
+
+<body style="overflow-x: hidden">
+    <!--navbar-->
+    <ul class="topnav">
+        <li style="padding-top: 7px;"><img src="images/car1.png" height="62px;"></img>
+        </li>
+        <li><a class="active" href="home.html">Home</a></li>
+        <li><a href="news.html">News</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li>
+            <select style="border: none; margin-top: 28px; background-color: #333; color: white;" onchange="location = this.value;">
+              <option>More</option>
+              <option value="about.html">About Us</option>
+              <option value="https://g.page/bmw-coimbatore?share"><a>Locate Us</a></option>
+              <option value="./loan.html">Loan/EMI Calculator</option>
+              <option value="./book.html">Book Now</option>
+              <option value="faq.html">FAQ's</option>
+            </select>
+        </li>
+        <li style="float: right;padding-top: 28px;padding-right: 1%;font-family: 'Crimson Text', serif;"> <select>
+        <option>Select city</option>
+        <option>Chennai</option>
+        <option>Coimbatore</option>
+        <option>Salem</option>
+        <option>Madurai</option>
+      </select></li>
+        <li style="float: right;"> <a href="login.html" id="lj">Login</a></li>
+    </ul>
+    <script>
+        function toggleElement(id) {
+            if (document.getElementById(id).style.display == 'none') {
+                document.getElementById(id).style.display = '';
+            } else {
+                document.getElementById(id).style.display = 'none';
+            }
+        }
+    </script>
+
+    <h1>
+        <div class="row filter bg">
+
+            <div class=" col-lg-3 mx-auto d-flex justify-content-around mt-5 sortBtn flex-wrap">
+
+
+
+                <i class="btn" style="margin-left:19px;font-size:37px;background: #C6FFDD; background: #8E0E00; background: -webkit-linear-gradient(to right, #1F1C18, #8E0E00);
+            background: linear-gradient(to right, #1F1C18, #8E0E00); " id="welcome">FREQUENTLY ASKED QUESTIONS</i>
+
+            </div>
+        </div>
+    </h1>
+
+    <div style="background-color: #FAFFD1;margin-left:50px;margin-right:80px;text-decoration: none;">
+        <p>
+            <a style="text-decoration: none;" href="javascript:toggleElement('a1')">What makes CARBEE the best place to sell my car?</a>
+        </p>
+        <div id="a1" style="display:none;">
+            CARBEE is on a mission to streamline the unorganised car selling market in India. We at CARBEE help you:<br>
+            <strong> Sell your car in a Single Visit:</strong> <br> No more tedious negotiations with multiple buyers over a period of several weeks. Visit your nearest CARBEE branch and sell your car in precisely one visit!<br>
+            <strong>Get Instant money Transfer:</strong> <br> CARBEE transfers your money straight to your bank account on the same day if you avail the instant payment option. No painful and cumbersome follow-ups required.<br>
+            <strong>Get free RC Transfer:</strong> <br> Long lines at the RTO Office? Complicated Paperwork? Worry not. Sell your car to us and we will handle all the necessary documentation needed to get your RC transferred, that too free of cost. On
+            top of that, every car seller is protected by the CARBEE Customer Protection Policy until the RC gets transferred.<br>
+            <strong>Get the best Price:</strong><br> It’s the aggregate of research and on-ground experience of inspecting 3 lakh+ cars that have made us an expert when it comes to used car pricing. Prices we offer for your used car are based on its condition
+            as well as the market factors - the only unbiased engine to calculate the best price for your car.
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a2')">How do I sell my car at CARBEE</a>
+        </p>
+        <div id="a2" style="display:none">
+            Selling your car is easy with CARBEE.<br>
+            <strong> Book an appointment</strong> by visiting our website - Feed in the details required, choose your nearest CARBEE branch and preferred appointment day.<br>
+            <strong>Visit the branch</strong> and get your car inspected free of cost.<br> You will get the <strong> CARBEE Best Price </strong> and we will handle the documentation and RC Transfer
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a3')">What will happen if my car is financed by a bank and I want to sell it to CARBEE?</a>
+        </p>
+        <div id="a3" style="display:none">
+            If the car you want to sell is financed, simply bring along a current dated foreclosure letter issued by the bank and we will pay the loan on your car. The settlement amount will be deducted from the CARBEE quote for your car. Alternatively, you can settle
+            the loan yourself before selling the car to us. CARBEE may hold back a certain amount until the bank loan clearance NOC is submitted by you.
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a4')">Your website quote does not match my expectations. Why should I visit your branch?</a>
+        </p>
+        <div id="a4" style="display:none">
+            The website quote is an estimated value range generated by our pricing algorithm based on some broad parameters like car make and model, variant, odometer reading and other details that you enter on the website. The final price quote offered also takes
+            into consideration the physical condition of your vehicle as evaluated during the inspection process and market conditions.
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a5')">I cannot find my car’s registration state while booking the appointment online.</a>
+        </p>
+        <div id="a5" style="display:none">
+            This may just happen because we are not currently present in your state. However, we are expanding at a rapid pace and plan to launch the used car buying service in many more cities pan India, very soon.
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a6')">Does CARBEE provide home inspection?</a>
+        </p>
+        <div id="a6" style="display:none">
+            Yes, CARBEE is currently offering free Car Inspection at Home for a hassle-free selling experience. To check if the Home Inspection service is available at your location, please select your city while booking the appointment.
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a7')">Can I reschedule my appointment?</a>
+        </p>
+        <div id="a7" style="display:none">
+            Yes, you can change your appointment time, date or branch. Simply login with your registered mobile number on our website or mobile app and visit the ‘My Appointment’ section. There is also a link to reschedule in the appointment confirmation email that
+            you receive. Alternatively, you can call our customer helpline number at 1800 258 5656 and we will reschedule your appointment for you.
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a8')">Is it mandatory to book an appointment?</a>
+        </p>
+        <div id="a8" style="display:none">
+            Yes. By booking an appointment with us, you are reserving your dedicated slot to be catered to by one of our associates at the branch. In case, you drop in at any of our branches without having an appointment booked, you will be asked to book one on the
+            spot. This will lead to unnecessary wastage of time and efforts which we tend to avoid. We are serving several customers at a time and our goal is to ensure all of them receive the same kind of experience. Having dedicated slots booked in
+            advance helps us achieve the same and allows us to serve our customers in the best way possible.
+        </div>
+        <p>
+            <a href="javascript:toggleElement('a9')">How do I book an appointment?</a>
+        </p>
+        <div id="a9" style="display:none">
+            It’s simple! Log on to our website, fill in the basic details about your car as mentioned above and schedule an appointment at your nearest CARS24 branch. OR, you can simply call our customer helpline number at 1800-258-5656 and we will schedule an appointment
+            for you.
+        </div>
+        <a href="javascript:toggleElement('a10')"> Will you charge me for my car's inspection?</a>
+        </p>
+        <div id="a10" style="display:none">
+            No, CARBEE inspection process at all our retail branches is absolutely free.
+        </div>
+        <a href="javascript:toggleElement('a11')">Why is there a difference between the online valuation and the actual price offered at the branch?</a>
+        </p>
+        <div id="a11" style="display:none">
+            The online valuation indicates the estimated range you can get for your car considering it is in a picture-perfect condition. The detailed inspection conducted at the branch which determines the physical health and working of the car’s components decides
+            what the final quote offered will be. The factors that impact the value of your car include the car make, aesthetics and mechanical condition, odometer reading and market conditions.
+        </div>
+        <a href="javascript:toggleElement('a12')">What all do you check during the inspection of my car?</a>
+        </p>
+        <div id="a12" style="display:none">
+            Our used car inspection process is fair and thorough to ensure an objective standardized report that gives a clear view of the condition of your car. We start with a document check and test drive and then use the latest tools to assess the exterior, tires,
+            engine, transmission, interiors and electricals. We also inspect the steering mechanism, suspension, brakes and accessories of your car during the test drive. Feel free to ask any questions from our team at the branch.
+        </div>
+        <a href="javascript:toggleElement('a13')">How long will my car's inspection take?</a>
+        </p>
+        <div id="a13" style="display:none">
+            At CARBEE, we evaluate a used car on the basis of several parameters. Our dedicated car experts are trained to complete the entire process of car inspection within a time period of 30-45 minutes. However, there might be instances, pertaining to different
+            car conditions, when the car inspection process may even extend to 90 minutes.
+        </div>
+        <a href="javascript:toggleElement('a14')">I got an SMS to check in, where do I have to check in at the branch?</a>
+        </p>
+        <div id="a14" style="display:none">
+            One of our branch team members will come to you and assist you with the check-in process, provided you have booked an appointment beforehand. Please ensure that you get the check-in done as soon as you enter the branch so that you are queued in for the
+            inspection process to start.
+        </div>
+
+        <a href="javascript:toggleElement('a15')">Till when are your branches open?</a>
+        </p>
+        <div id="a15" style="display:none">
+            Our branches generally operate from 10 am - 6 pm. We recommend you to reach our branch by 5 pm to avoid any hassle or delay. Please note that there might be some branches across India which do not operate on a certain day of the week. When you try booking
+            an appointment for a time slot, you can view if your preferred branch is operational on that particular time and day or not.
+        </div>
+
+        <a href="javascript:toggleElement('a16')">Can I send my driver to get the inspection done?</a>
+        </p>
+        <div id="a16" style="display:none">
+            Yes, you can. However, you must ensure that your driver carries all the required documents to get the car inspected. Also, please note that the owner of the car needs to self-attest all the documents involved. We will also need the bank account details
+            of the registered owner of the car to initiate the transaction.
+        </div>
+
+        <a href="javascript:toggleElement('a17')">What documents should I carry to the branch for my car's inspection?</a>
+        </p>
+        <div id="a17" style="display:none">
+            <h4>It is important that you bring the following documents with you to proceed with the inspection of your car:</h4>
+            <ol type="1">
+                <li>Original RC (Mandatory)</li>
+                <li>Insurance Certificate / Cover Note / Policy</li>
+                <li>Original Invoice</li>
+                <li>Duplicate Keys</li>
+                <li>Service Manual</li>
+                <li>Last Service Receipt</li>
+                <li>Extended Warranty Certificate (if applicable)</li>
+            </ol><br>
+            <h4>To avail instant payment for your car, please bring along the following documents:</h4>
+            <ol type="1">
+                <li>PAN card of the registered owner (Mandatory for Payment)</li>
+                <li>4 Self-attested photos of the registered owner</li>
+                <li>Registered owner's - Aadhar Card/ Pan Card/ Passport</li>
+                <li>Financial documents in case of financed car</li>
+                <li>Cancelled Cheque</li>
+                <li>GSTIN Registration Certificate (Required only if the car's RC is in the name of the Firm / Company / HUF etc.)</li>
+            </ol>
+            <strong>Do remember to take out all of your personal belongings from your car before your inspection!</strong>
+        </div>
+
+    </div>

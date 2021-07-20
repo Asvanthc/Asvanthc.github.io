@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact Form</title>
+    <style>
+        body {
+            margin: 0;
+            background: linear-gradient(to right, #11998e, #38ef7d);
+            line-height: 1.15;
+            overflow-x: hidden;
+        }
+        
+        ul.topnav {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #333;
+        }
+        
+        ul.topnav li {
+            float: left;
+        }
+        
+        ul.topnav li a {
+            display: block;
+            color: white;
+            text-align: center;
+            padding: 28px 16px;
+            text-decoration: none;
+        }
+        
+        ul.topnav li a:hover:not(.active) {
+            background-color: #111;
+            height: 80px;
+        }
+        
+        ul.topnav li a.active {
+            background-color: #4CAF50;
+            height: 80px;
+        }
+        
+        ul.topnav li.right {
+            float: right;
+        }
+    </style>
+    <link rel="stylesheet" href="css/stylecon.css" />
+    <script src="https://kit.fontawesome.com/64d58efce2.js" crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <!-- navbar -->
+    <div id="navbar">
+        <ul class="topnav">
+            <li style="padding-top: 7px;"><img src="images/car1.png" height="62px;"></img>
+            </li>
+            <li><a href="home.html">Home</a></li>
+            <li><a href="news.html">News</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li>
+                <select style="border: none; margin-top: 28px; background-color: #333; color: white;" onchange="location = this.value;">
+        <option>More</option>
+        <option value="about.html">About Us</option>
+        <option value="https://g.page/bmw-coimbatore?share"><a>Locate Us</a></option>
+        <option value="./loan.html">Loan/EMI Calculator</option>
+        <option value="./book.html">Book Now</option>
+        <option value="faq.html">FAQ's</option>
+      </select>
+            </li>
+            <li style="float: right;padding-top: 28px;padding-right: 1%;font-family: 'Crimson Text', serif;"> <select>
+       <option>Select city</option>
+       <option>Chennai</option>
+       <option>Coimbatore</option>
+       <option>Salem</option>
+       <option>Madurai</option>
+       </select></li>
+            <li style="float: right;"> <a href="login.html">Login</a></li>
+        </ul>
+    </div>
+
+    <div class="container" style=" background: linear-gradient(to right, #11998e, #38ef7d);">
+        <div class="form">
+            <div class="contact-info">
+                <h3 class="title">Let's get in touch</h3>
+                <p class="text">
+                    Want to get in touch with us?We'd love to hear from you. Here's how to get in contact with us....
+                </p>
+
+                <div class="info">
+                    <div class="information">
+                        <img src="images/" class="icon" alt="" />
+                        <p>2181/a, Coimbatore,110008 </p>
+                    </div>
+                    <div class="information">
+                        <img src="imamges/email.png" class="icon" alt="" />
+                        <p>carbee@gmail.com</p>
+                    </div>
+                    <div class="information">
+                        <img src="images/phone.png" class="icon" alt="" />
+                        <p>987-654-321</p>
+                    </div>
+                </div>
+
+                <div class="social-media">
+                    <p>Connect with us :</p>
+                    <div class="social-icons">
+                        <a href="#">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#">
+                            <i class="fab fa-instagram"></i>
+                        </a>
+                        <a href="#">
+                            <i class="fab fa-linkedin-in"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-form">
+
+                <form action="mailto:carbee@gmail.com" autocomplete="off" id="myForm" method="POST">
+                    <h3 class="title">Contact us</h3>
+                    <div class="input-container">
+                        <input type="text" name="name" class="input" />
+                        <label for="">Username</label>
+                        <span>Username</span>
+                    </div>
+                    <div class="input-container">
+                        <input type="email" name="email" class="input" />
+                        <label for="">Email</label>
+                        <span>Email</span>
+                    </div>
+                    <div class="input-container">
+                        <input type="tel" name="phone" class="input" />
+                        <label for="">Phone</label>
+                        <span>Phone</span>
+                    </div>
+                    <div class="input-container textarea">
+                        <textarea name="message" class="input"></textarea>
+                        <label for="">Message</label>
+                        <span>Message</span>
+                    </div>
+                    <input type="submit" value="Send" onclick="alert('Your query submitted successfully')" class=" btn " />
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js "></script>
+</body>
+
+</html>
