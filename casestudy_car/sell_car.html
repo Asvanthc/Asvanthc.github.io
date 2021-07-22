@@ -1,0 +1,343 @@
+<html lang="en">
+
+<head>
+    <!-- //Used js form validation for fill details. The validation is applied for all form elements name, email, mobile,.. The form submits only if all data entered is correct.
+// Used  alert messages to confirm that the ad is posted and validated. -->
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carbee-sell-car</title>
+    <link rel="shortcut icon" href="favicon.ico">
+    <link rel="stylesheet" href="css/styleold.css">
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Doppio+One&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/b8c6c27289.js" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+
+</head>
+
+<body style="overflow-x: hidden">
+    <!--navbar-->
+    <div id="navbar">
+        <ul class="topnav">
+            <li style="padding-top: 7px;"><img src="images/car1.png" height="62px;"></img>
+            </li>
+            <li><a href="home.html">Home</a></li>
+            <li><a href="news.html">News</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li>
+                <select style="border: none; margin-top: 28px; background-color: #333; color: white;" onchange="location = this.value;">
+                  <option>More</option>
+                  <option value="about.html">About Us</option>
+                  <option value="https://g.page/bmw-coimbatore?share"><a>Locate Us</a></option>
+                  <option value="./loan.html">Loan/EMI Calculator</option>
+                  <option value="./book.html">Book Now</option>
+                  <option value="faq.html">FAQ's</option>
+                </select>
+            </li>
+
+            <li style="float: right;padding-top: 28px;padding-right: 1%;font-family: 'Crimson Text', serif;"> <select>
+       <option>Select city</option>
+       <option>Chennai</option>
+       <option>Coimbatore</option>
+       <option>Salem</option>
+       <option>Madurai</option>
+       </select></li>
+            <li style="float: right;"> <a href="login.html">Login</a></li>
+        </ul>
+    </div>
+    <aside style="width:20%; float: right; margin-top: 50px; margin-right: 20px;">
+        <iframe src="./news.html#a" height="400px" frameborder="0"></iframe>
+        <h2>Chennai</h2>
+        <div class="mapouter">
+            <div class="gmap_canvas"><iframe class="gmap_iframe" width="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?width=600&amp;height=400&amp;hl=en&amp;q=car showroom, chennai&amp;t=&amp;z=12&amp;ie=UTF8&amp;iwloc=B&amp;output=embed"></iframe>
+                <a href="https://www.fridaynightfunkin.net/friday-night-funkin-mods-fnf-play-online/">Friday Night Funkin Mods</a>
+            </div>
+            <style>
+                .mapouter {
+                    position: relative;
+                    text-align: right;
+                    width: 100%;
+                    height: 400px;
+                }
+                
+                .gmap_canvas {
+                    overflow: hidden;
+                    background: none!important;
+                    width: 100%;
+                    height: 400px;
+                }
+                
+                .gmap_iframe {
+                    height: 400px!important;
+                }
+            </style>
+        </div>
+        <br><iframe width="100%" height="215" src="https://www.youtube.com/embed/WkqdD2wy3Bs?start=7" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </aside>
+    <center>
+        <h1>
+            <div class="row filter bg">
+
+                <div class=" col-lg-3 mx-auto d-flex justify-content-around mt-5 sortBtn flex-wrap">
+
+
+                    <i class="btn" style="font-size:37px">SELL YOUR CAR</i>
+                </div>
+            </div>
+        </h1>
+
+        <div class="col-md-7 col-lg-8" style="width:640px; background: #ffe657cc; padding-bottom: 20px; margin-left: -20%;">
+            <form class="needs-validation" novalidate>
+                <h4 class="mb-3">Location</h4>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label for="state" class="form-label" style="margin-left: -70px;">State :
+                    <select class="form-select" id="state" required>
+                        <option value="">Choose...</option>
+                        <option>Tamil Nadu</option>                      
+                    </select></label>
+                        <div class="invalid-feedback">
+                            State required.
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label for="city" class="form-label">City :
+                    <select class="form-select" id="city" required>
+                        <option value="">Choose...</option>
+                        <option>Chennai</option>
+                        <option>Coimbatore</option>
+                        <option>Madurai</option>
+                        <option>Salem</option>                      
+                    </select></label>
+                        <div class="invalid-feedback">
+                            City is required.
+                        </div>
+                    </div><br><br>
+                    <div class="col-sm-4">
+                        <label for="pin" class="form-label" style="margin-left: -60px;">Pincode:</label>
+                        <input style="float: left; margin-left: 30px;" type="tel" class="form-control" id="pin" placeholder="123456" maxlength="6" required>
+                        <div class="invalid-feedback">
+                            Pincode required.
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <h4 class="mb-3">Contact details</h4>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label for="firstName" class="form-label">First name</label>
+                        <input type="text" class="form-control" id="firstName" placeholder="Enter your First Name" value="" required>
+                        <div class="invalid-feedback">
+                            First name is required.
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label for="lastName" class="form-label">Last name</label>
+                        <input type="text" class="form-control" id="lastName" placeholder="Enter your Last Name" value="" required>
+                        <div class="invalid-feedback">
+                            Last name is required.
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" placeholder="you@example.com" value="" required>
+                        <div class="invalid-feedback">
+                            Valid email address is required.
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="num" class="form-label">Mobile</label>
+                        <input type="tel" class="form-control" name="num" id="num" placeholder="1234567890" maxlength="10" required>
+                        <div class="invalid-feedback">
+                            Mobile Number required.
+                        </div>
+                    </div>
+                </div><br>
+                <hr>
+                <h4 class="mb-3">Car Details</h4>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label for="year" class="form-label">Year</label>
+                        <select class="form-select" id="year" required>
+                <option value="">Choose...</option>
+                <option>2021</option>
+                <option>2020</option>
+                <option>2019</option>
+                <option>2018</option>
+                <option>2017</option>
+                <option>2016</option>
+                <option>2015</option>
+                <option>2014</option>
+                <option>2013</option>
+                <option>2012</option>
+                <option>2011</option>
+                <option>2010</option>
+                <option>2009</option>
+                <option>2008</option>
+                <option>2007</option>
+                <option>2006</option>
+                <option>2005</option>
+                <option>2004</option>
+                <option>2003</option>
+                <option>2002</option>
+                <option>2001</option>
+                <option>2000</option>
+            </select>
+                        <div class="invalid-feedback">
+                            Year required.
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label for="month" class="form-label">Month</label>
+                        <select class="form-select" id="month" required>
+                        <option value="">Choose...</option>
+                        <option>JAN</option>
+                        <option>FEB</option>
+                        <option>MAR</option>
+                        <option>APR</option>
+                        <option>MAY</option>
+                        <option>JUN</option>
+                        <option>JUL</option>
+                        <option>AUG</option>
+                        <option>SEP</option>
+                        <option>OCT</option>
+                        <option>NOV</option>
+                        <option>DEC</option></select>
+                        <div class="invalid-feedback">
+                            Month required.
+                        </div>
+                    </div><br><br>
+                    <div class="col-sm-6">
+                        <label for="make" class="form-label">Make</label>
+                        <select class="form-select" id="make" required>
+                        <option value="">Choose...</option>
+                        <option>Maruti Suzuki</option>
+                        <option>Hyundai</option>
+                        <option>Toyota</option>
+                        <option>Ford</option>
+                        <option>Volkswagen</option>
+                        <option>Audi</option>
+                        <option>BMW</option>
+                        <option>Fiat</option>
+                        <option>Skoda</option>
+                        <option>Renault</option>
+                    </select>
+                        <div class="invalid-feedback">
+                            Make required.
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label for="model" class="form-label">Model</label>
+                        <input type="text" class="form-control" id="model" placeholder="" value="" required>
+                        <div class="invalid-feedback">
+                            Model name required.
+                        </div>
+                    </div>
+
+
+
+                    <div class="col-6">
+                        <label for="km" class="form-label">Kilometers Driven</label>
+                        <input type="tel" class="form-control" id="km" placeholder="km" value="" required>
+                        <div class="invalid-feedback">
+                            No. of Kilometers required.
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <label for="price" class="form-label">Expected Selling Price</label>
+                        <input type="tel" class="form-control" id="km" placeholder="(in rupees)" value="" required>
+                        <div class="invalid-feedback">
+                            Selling Prize required.
+                        </div>
+                    </div>
+                </div><br>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label for="owner" class="form-label">Owner</label>
+                        <select class="form-select" id="owner" required>
+                        <option value="">Choose...</option>
+                        <option>First Owner</option>
+                        <option>Second Owner</option>
+                        <option>Third Owner</option>
+                        <option>Four or more Owners</option>
+                    </select>
+                        <div class="invalid-feedback">
+                            Owner required.
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label for="colour" class="form-label">Colour</label>
+                        <select class="form-select" id="colour" required>
+                        <option value="">Choose...</option>
+                        <option>White</option>
+                        <option>Silver</option>
+                        <option>Gray</option>
+                        <option> Black</option>
+                        <option>Red</option>
+                        <option>Blue</option>
+                        <option>Gold</option>
+                        <option>Maroon</option>
+                        <option>Brown</option>
+                    </select>
+                        <div class="invalid-feedback">
+                            Colour required.
+                        </div>
+                    </div>
+                </div><br>
+                <h4 class="mb-3">Car Images</h4>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label for="img" class="form-label"></label>
+                        <input type="file" class="form-control" id="img" placeholder="Upload" multiple required>
+                        <div class="invalid-feedback">
+                            Image required.
+                        </div>
+                    </div><br>
+                </div>
+                <hr class="my-4">
+                <button class="w-100 btn btn-primary btn-lg" type="submit" ondblclick="success()">Post your car</button>
+                <script src="/docs/5.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+
+                <script src="/docs/5.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+
+                <script>
+                    (function() {
+                        'use strict'
+                        var forms = document.querySelectorAll('.needs-validation')
+                        Array.prototype.slice.call(forms)
+                            .forEach(function(form) {
+                                form.addEventListener('submit', function(event) {
+                                    if (!form.checkValidity()) {
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                    }
+                                    form.classList.add('was-validated')
+                                }, false)
+                            })
+                    })()
+
+                    function success() {
+                        alert("Ad has been posted successfully");
+                    }
+                </script>
+            </form>
+        </div>
+    </center>
+    <footer id="footer">
+        <div class="container-fluid"><br><br>
+            <i class="social-icon fab fa-facebook-f"></i>
+            <i class="social-icon fab fa-twitter"></i>
+            <i class="social-icon fab fa-instagram"></i>
+            <i class="social-icon fas fa-envelope"></i>
+            <p>© Copyright 2021 CarBee</p>
+        </div>
+    </footer>
+</body>
+
+</html>

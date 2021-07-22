@@ -1,0 +1,308 @@
+<html lang="en">
+
+<head>
+
+    <!-- //filter of cars using (javascript)
+//car info with div
+    //font tyle imported for google fonts
+//background linear -->
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carbee-old-car</title>
+    <link rel="shortcut icon" href="favicon.ico">
+    <link rel="stylesheet" href="css/styleold.css">
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Doppio+One&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/b8c6c27289.js" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+
+</head>
+
+<body style="overflow-x: hidden">
+    <!--navbar-->
+    <div id="navbar">
+        <ul class="topnav">
+            <li style="padding-top: 7px;"><img src="images/car1.png" height="62px;"></img>
+            </li>
+            <li><a href="home.html">Home</a></li>
+            <li><a href="news.html">News</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li>
+                <select style="border: none; margin-top: 28px; background-color: #333; color: white;" onchange="location = this.value;">
+                  <option>More</option>
+                  <option value="about.html">About Us</option>
+                  <option value="https://g.page/bmw-coimbatore?share"><a>Locate Us</a></option>
+                  <option value="./loan.html">Loan/EMI Calculator</option>
+                  <option value="./book.html">Book Now</option>
+                  <option value="faq.html">FAQ's</option>
+                </select>
+            </li>
+            <li style="float: right;padding-top: 28px;padding-right: 1%;font-family: 'Crimson Text', serif;"> <select>
+       <option>Select city</option>
+       <option>Chennai</option>
+       <option>Coimbatore</option>
+       <option>Salem</option>
+       <option>Madurai</option>
+       </select></li>
+            <li style="float: right;"> <a href="login.html">Login</a></li>
+        </ul>
+    </div>
+
+
+
+    </h1>
+
+    <div class="row filter bg">
+
+        <div class=" col-lg-5 mx-auto d-flex justify-content-around mt-5 sortBtn flex-wrap">
+
+
+            <i class="btn" style="margin-left:19px;font-size:37px;background: #C6FFDD; background: #8E0E00; background: -webkit-linear-gradient(to right, #1F1C18, #8E0E00);
+            background: linear-gradient(to right, #1F1C18, #8E0E00); " id="welcome">Used Cars </i>
+        </div>
+    </div>
+    <!-- items -->
+
+    <div class="row items" id="it">
+
+        <div class="col-lg-2" style="background-color: aliceblue;padding-left: 50px;height:900px;margin-top: 90px;">
+            <!-- Section: Sidebar -->
+            <section>
+                <br><br>
+                <!-- Section: Filters -->
+                <section>
+
+                    <h5>Filters</h5>
+
+                    <!-- Section: Condition -->
+                    <section class="mb-4">
+
+                        <h6 class="font-weight-bold mb-3">Condition</h6>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="checkbox" class="form-check-input filled-in" id="e12" onclick="every()">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="used">All</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="checkbox" class="form-check-input filled-in" id="hb" onclick="hatchback()">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="used">HatchBack</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="checkbox" class="form-check-input filled-in" id="suv" onclick="suv()">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="collectible">SUV</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3 pb-1">
+                            <input type="checkbox" class="form-check-input filled-in" id="sedan" onclick="sedan()">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="renewed">Sedan</label>
+                        </div>
+
+                    </section>
+                    <!-- Section: Condition -->
+
+
+                    <!-- Section: Price -->
+                    <section class="mb-4">
+
+                        <h6 class="font-weight-bold mb-3">Price</h6>
+
+                        <div class="form-check pl-0 mb-3">
+                            <input type="radio" class="form-check-input" value="1" id="u5" name="materialExampleRadios">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="under25">Under ₹5 Lakhs</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="radio" class="form-check-input" value="1" id="5t" name="materialExampleRadios">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="2550">₹5 to 10 Lakhs</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="radio" class="form-check-input" value="1" id="10t" name="materialExampleRadios">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="50100">₹10 to 15 Lakhs</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="radio" class="form-check-input" value="1" id="15t" name="materialExampleRadios">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="100200">₹15 to 20 Lakhs</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="radio" class="form-check-input" value="1" id="20a" name="materialExampleRadios">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="200above">₹20Lakhs & Above</label>
+                        </div>
+
+                    </section>
+                    <!-- Section: Price -->
+
+                    <!-- Section: Price version 2 -->
+                    <section class="mb-4">
+
+                        <h6 class="font-weight-bold mb-3">Km Driven</h6>
+
+                        <h4 style="margin-left: 19px;"><span id="demo">0 </span>Km</h4>
+                        <div class="slider-price d-flex align-items-center my-4" style="margin-left: -22px;">
+
+                            <span class="font-weight-normal small text-muted mr-2">0</span>
+                            <form class="multi-range-field w-1000 mb-1">
+                                <input id="myRange" class="multi-range" type="range" />
+                            </form>
+                            <span class="font-weight-normal small text-muted ml-2">1 Lakh</span>
+                        </div>
+
+                    </section>
+                    <!-- Section: Price version 2 -->
+                    <section class="mb-4">
+
+                        <h6 class="font-weight-bold mb-3">Age</h6>
+
+                        <div class="form-check pl-0 mb-3">
+                            <input type="checkbox" class="form-check-input filled-in" id="new">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="new">Under 3 Years</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="checkbox" class="form-check-input filled-in" id="used">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="used">Under 5 Years</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3">
+                            <input type="checkbox" class="form-check-input filled-in" id="collectible">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="collectible">Under 7 Years</label>
+                        </div>
+                        <div class="form-check pl-0 mb-3 pb-1">
+                            <input type="checkbox" class="form-check-input filled-in" id="renewed">
+                            <label class="form-check-label small text-uppercase card-link-secondary" for="renewed">7 years & Above</label>
+                        </div>
+
+                    </section>
+                </section>
+                <!-- Section: Sidebar -->
+        </div>
+        <div class="col-lg-10 mx-auto justify-content-around justify-content-between d-flex flex-wrap my-2">
+
+            <div class="card sd" style="width: 20rem;" id="a3">
+                <img src="images/used/a3.webp" class="card-img-top" alt="...">
+                <div class="card-body">
+                    <h4 class="card-title">Audi A3</h4>
+                    <h5 class="card-text">₹22,00,000</h5>
+
+                    <p class="card-text ">2019-27,000 Km</p>
+                    <a href="old spec.html" class="btn btn-primary">View Details</a>
+                </div>
+            </div>
+
+
+            <div class="card hbk" style="width: 20rem;" id="polo">
+                <img src="images/used/polo.jpg" class="card-img-top" alt="...">
+                <div class="card-body">
+
+                    <h4 class="card-title">Volkswagen Polo</h4>
+                    <h5 class="card-text">₹8,00,000</h5>
+
+                    <p class="card-text ">2017-38,800 Km</p>
+                    <a href="old spec.html" class="btn btn-primary">View Details</a>
+                </div>
+            </div>
+
+
+            <div class="card sv" style="width: 20rem;" id="jp">
+                <img src="images/used/jeep.jpg" class="card-img-top" alt="...">
+                <div class="card-body">
+                    <h4 class="card-title">Jeep Compass</h4>
+                    <h5 class="card-text">₹13,00,000</h5>
+
+                    <p class="card-text ">2018-65,000 Km</p>
+                    <a href="old spec.html" class="btn btn-primary">View Details</a>
+                </div>
+            </div>
+
+
+            <div class="card hbk" style="width: 20rem;" id="120">
+                <img src="images/used/120.jpg" class="card-img-top" alt="...">
+                <div class="card-body">
+
+                    <h4 class="card-title">Hyundai i20</h4>
+                    <h5 class="card-text">₹6,30,000</h5>
+
+                    <p class="card-text ">2017-56,000 Km</p>
+                    <a href="old spec.html" class="btn btn-primary">View Details</a>
+                </div>
+            </div>
+
+
+
+            <div class="card sd" style="width: 20rem;" id="x3">
+                <img src="images/used/bmw.webp" class="card-img-top" alt="...">
+                <div class="card-body">
+                    <h4 class="card-title">BMW X3</h4>
+                    <h5 class="card-text">₹32,00,000</h5>
+
+                    <p class="card-text ">2015-77,000 Km</p>
+
+                    <a href="old spec.html" class="btn btn-primary">View Details</a>
+                </div>
+            </div>
+
+            <div class="card sd" style="width: 20rem;" id="rapid">
+                <img src="images/used/rapid.jfif" class="card-img-top" alt="...">
+                <div class="card-body">
+                    <h4 class="card-title">Skoda Rapid</h4>
+                    <h5 class="card-text">₹11,00,000</h5>
+
+                    <p class="card-text ">2016-83,000 Km</p>
+                    <a href="old spec.html" class="btn btn-primary">View Details</a>
+                </div>
+            </div>
+
+
+            <div class="card sv" style="width: 20rem;" id="innova">
+                <img src="images/used/innova.jpeg" class="card-img-top" alt="...">
+                <div class="card-body">
+
+                    <h4 class="card-title">Innova Crysta</h4>
+                    <h5 class="card-text">₹17,00,000</h5>
+
+                    <p class="card-text ">2020-21,000 Km</p>
+                    <a href="old spec.html" class="btn btn-primary">View Details</a>
+                </div>
+            </div>
+
+
+
+            <div class="card hbk" style="width: 20rem;" id="swift">
+                <img src="images/used/swift.jfif" class=" card-img-top " alt="... ">
+                <div class="card-body ">
+                    <h4 class="card-title ">Maruti Swift</h4>
+                    <h5 class="card-text">4,87,000</h5>
+
+                    <p class=" card-text ">2014-69,000 Km</p>
+                    <a href="old spec.html " class="btn btn-primary ">View Details</a>
+                </div>
+            </div>
+
+            <div class="card sd " style="width: 20rem; " id="verna">
+                <img src="images/used/verna.webp " class="card-img-top " alt="... ">
+                <div class="card-body ">
+                    <h4 class="card-title ">Hyundai Verna</h4>
+                    <h5 class="card-text ">₹15,20,000</h5>
+                    <p class="card-text ">2020-17,000 Km</p>
+                    <a href="old spec.html " class="btn btn-primary ">View Details</a>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+    </div>
+    <!--footer-->
+    <footer id="footer " align="center ">
+        <div class="container-fluid "><br><br>
+            <i class="social-icon fab fa-facebook-f "></i>
+            <i class="social-icon fab fa-twitter "></i>
+            <i class="social-icon fab fa-instagram "></i>
+            <i class="social-icon fas fa-envelope "></i>
+            <p>© Copyright 2021 CarBee</p>
+        </div>
+    </footer>
+
+
+    <script src="script/jsold.js"></script>
+</body>
+
+</html>
