@@ -21,6 +21,25 @@ h1{ margin: 0; }
   border: 1px solid white;
   border-radius: 20px;
 }
+@media (min-width: 320px) and (max-width: 480px) {
+  
+  #contact {
+    font-size: 16px;
+    width: 250px;
+    height: 25px;
+  }
+  
+}
+
+@media (min-width: 100px) and (max-width: 320px) {
+  
+  #contact {
+    font-size: 8px;
+    width: 140px;
+    height: 25px;
+  }
+  
+}
 
 #contact:hover { background: #666; }
 #contact:active { background: #444; }
