@@ -1,0 +1,1451 @@
+#include <lpc214x.h>
+
+#define PLOCK 0x00000400 // for PLL
+#define THRE (1<<5) // Transmit Holding Register Empty
+#define RDR (1<<0) // Receiver Data Ready
+#define MULVAL 15
+#define DIVADDVAL 1
+#define NEW_LINE 0xA // Character for new line .. analogus to '\n'
+#define ENTER 0xD // Ascii code for Enter 
+
+#define LED1_ON() IO1SET=(1<<16)
+#define LED2_ON() IO1SET=(1<<17)
+#define LED3_ON() IO1SET=(1<<18)
+#define LED4_ON() IO1SET=(1<<19)
+
+#define LED1_OFF() IO1CLR=(1<<16)
+#define LED2_OFF() IO1CLR=(1<<17)
+#define LED3_OFF() IO1CLR=(1<<18)
+#define LED4_OFF() IO1CLR=(1<<19)
+
+
+
+void initUART0(void);
+void U0Write(char data);
+char U0Read(void);
+void initClocks(void);
+
+void setupPLL0(void);
+void feedSeq(void);
+void connectPLL0(void);
+
+void  Delay(unsigned char j){  
+ unsigned int  i;
+ for(;j>0;j--)
+ {
+  for(i=0; i<60000; i++);
+ } 
+}
+
+
+int main(void)
+{
+ PINSEL1 = 0x00000000;
+ PINSEL2 = 0x00000000;
+
+ IO1DIR = (1<<19) | (1<<18) | (1<<17) | (1<<16);
+	initClocks(); // Set CCLK=60Mhz and PCLK=60Mhz 
+	initUART0();
+	
+	while(1)		
+	{
+		char c = U0Read(); // Read Data from Rx
+		if( c == '\n' ) // Check if user pressed Enter key
+		{
+			U0Write('\n'); // Send New Line ASCII code change line
+		}
+		else
+		{
+				U0Write(c);
+				if(c=='a'){
+				LED1_ON();
+				Delay(500);
+				LED1_OFF();}
+				if(c=='b'){
+				LED1_ON();
+				LED2_ON();
+				Delay(500);
+				LED1_OFF();
+				LED2_OFF();}
+
+			
+			 // Write it to Tx to send it back
+		}
+	}
+	
+	return 0;
+}
+
+void initUART0(void)
+{
+	PINSEL0 = 0x5;
+	  /* Select TxD for P0.0 and RxD for P0.1 */
+
+	U0LCR = 3 | (1<<7) ; /* 8 bits, no Parity, 1 Stop bit | DLAB set to 1  */
+	U0DLL = 110;
+	U0DLM = 1;   
+	U0FDR = (MULVAL<<4) | DIVADDVAL; /* MULVAL=15(bits - 7:4) , DIVADDVAL=0(bits - 3:0)  */
+	U0LCR &= 0x0F; // Set DLAB=0 to lock MULVAL and DIVADDVAL
+	//BaudRate is now ~9600 and we are ready for UART communication!
+}
+
+void U0Write(char data)
+{
+	while ( !(U0LSR & THRE ) ); // wait till the THR is empty
+	// now we can write to the Tx FIFO
+	U0THR = data;
+}
+
+char U0Read(void)
+{
+	while( !(U0LSR & RDR ) ); // wait till any data arrives into Rx FIFO
+	return U0RBR;
+}
+
+void initClocks(void)
+{
+	setupPLL0();
+	feedSeq(); //sequence for locking PLL to desired freq.
+	connectPLL0();
+	feedSeq(); //sequence for connecting the PLL as system clock
+
+	//SysClock is now ticking @ 60Mhz!
+	   
+	VPBDIV = 0x01; // PCLK is same as CCLK i.e 60Mhz
+
+	//Using PLL settings as shown in : http://www.ocfreaks.com/lpc214x-pll-tutorial-for-cpu-and-peripheral-clock/
+	//PLL0 Now configured!
+}
+
+
+//---------PLL Related Functions :---------------
+
+void setupPLL0(void)
+{
+	//Note : Assuming 12Mhz Xtal is connected to LPC2148.
+
+	PLL0CON = 0x01; // PPLE=1 & PPLC=0 so it will be enabled
+					// but not connected after FEED sequence
+	PLL0CFG = 0x24; // set the multipler to 5 (i.e actually 4)
+					// i.e 12x5 = 60 Mhz (M - 1 = 4)!!!
+					// Set P=2 since we want FCCO in range!!!
+					// So , Assign PSEL =01 in PLL0CFG as per the table.
+}
+
+void feedSeq(void)
+{
+	PLL0FEED = 0xAA;
+	PLL0FEED = 0x55;
+}
+
+void connectPLL0(void)
+{
+	// check whether PLL has locked on to the desired freq by reading the lock bit
+	// in the PPL0STAT register
+
+	while( !( PLL0STAT & PLOCK ));
+
+	// now enable(again) and connect
+	PLL0CON = 0x03;
+}
+-----------------------------------------------
+#include  <lpc214x.h>		 //Includes LPC2148 register definitions
+ 
+#define Fosc            12000000                    
+#define Fcclk           (Fosc * 5)                  
+#define Fcco            (Fcclk * 4)                 
+#define Fpclk           (Fcclk / 4) * 1             
+
+#define  UART_BPS	9600	 //Set Baud Rate here
+
+#define LED1_ON() IO1SET=(1<<16)	//Macro Functions to turn ON LED
+#define LED2_ON() IO1SET=(1<<17)
+#define LED3_ON() IO1SET=(1<<18)
+#define LED4_ON() IO1SET=(1<<19)
+
+#define LED1_OFF() IO1CLR=(1<<16)	//Macro Functions to turn OFF LED
+#define LED2_OFF() IO1CLR=(1<<17)
+#define LED3_OFF() IO1CLR=(1<<18)
+#define LED4_OFF() IO1CLR=(1<<19)
+
+const unsigned char SEND_STRING[] = "Nex Robotics PVT LTD\nARM7 LPC214x Development Board\nCommunication Test\nSend any character to continue\n";
+const unsigned char SEND_STRING1[] = "Test Passed\n";
+
+
+void  Delay_Ticks(unsigned int Delay)  //Function to generate finite delay
+{  
+   unsigned int i;
+   for(; Delay>0; Delay--) 
+   for(i=0; i<50000; i++);
+}
+
+
+void  Init_UART0(void)					//This function setups UART0
+{  
+   unsigned int Baud16;
+   U0LCR = 0x83;		            // DLAB = 1
+   Baud16 = (Fpclk / 16) / UART_BPS;  
+   U0DLM = Baud16 / 256;							
+   U0DLL = Baud16 % 256;						
+   U0LCR = 0x03;
+}
+				
+
+void  UART0_SendByte(unsigned char data)	   //A function to send a byte on UART0
+{  
+   U0THR = data;				    
+   while( (U0LSR&0x40)==0 );	
+
+ 	
+}
+
+int getchar (void) 
+{
+while (!(U0LSR & 0x01));
+return (U0RBR);
+}
+void  UART0_SendStr(const unsigned char *str)	 //A function to send a string on UART0
+{  
+   while(1)
+   {  
+      if( *str == '\0' ) break;
+      UART0_SendByte(*str++);	    
+   }
+}
+
+
+int  main(void)
+{  
+	char response;
+   PINSEL0 = 0x00000005;		    // Enable UART0 Rx and Tx pins
+   PINSEL1 = 0x00000000;
+   PINSEL2 = 0x00000000;
+IO1DIR = (1<<19) | (1<<18) | (1<<17) | (1<<16);
+	
+ Init_UART0();
+  UART0_SendStr(SEND_STRING);
+   //while((U0LSR&0x01)==0);
+   //UART0_SendStr(SEND_STRING1);
+	
+   while(1)	
+   {  response  = getchar();
+		
+     if(response == 'A' )
+		 {
+			 LED1_ON();
+		 }
+		 else if(response == 'a')
+		 {
+			 LED1_OFF();
+		 }
+		 if(response == 'B' )
+		 {
+			 LED2_ON();
+		 }
+		 else if(response == 'b')
+		 {
+			 LED2_OFF();
+		 }
+		 if(response == 'C' )
+		 {
+			 LED3_ON();
+		 }
+		 else if(response == 'c')
+		 {
+			 LED3_OFF();
+		 }
+		 if(response == 'D' )
+		 {
+			 LED4_ON();
+		 }
+		 else if(response == 'd')
+		 {
+			 LED4_OFF();
+		 }
+   }
+   return(0);
+}
+
+Questions
+-------------
+1.	Demonstrate “password authentication system” using LPC2148 microcontroller.
+a.	Receive the password from user through UART (RX) and compare the string, if matches switch on LED (p1.16). otherwise buzzer should generate waring sound.
+
+Note: password may be single character or string.
+
+*/
+#include <lpc214x.h>
+
+#define LED1_ON() IO1SET=(1<<16)
+#define LED2_ON() IO1SET=(1<<17)
+#define LED3_ON() IO1SET=(1<<18)
+#define LED4_ON() IO1SET=(1<<19)
+
+#define LED1_OFF() IO1CLR=(1<<16)
+#define LED2_OFF() IO1CLR=(1<<17)
+#define LED3_OFF() IO1CLR=(1<<18)
+#define LED4_OFF() IO1CLR=(1<<19)
+
+#define BUZZER_ON() IO0CLR=(1<<11)		 //Macro Functions to turn ON Buzzer
+#define BUZZER_OFF() IO0SET=(1<<11)		 //Macro Functions to turn OFF Buzzer
+
+
+#define PLOCK 0x00000400 // for PLL
+#define THRE (1<<5) // Transmit Holding Register Empty
+#define RDR (1<<0) // Receiver Data Ready
+#define MULVAL 15
+#define DIVADDVAL 1
+#define NEW_LINE 0xA // Character for new line .. analogus to '\n'
+#define ENTER 0xD // Ascii code for Enter 
+
+void initUART0(void);
+void U0Write(char data);
+char U0Read(void);
+void initClocks(void);
+
+void setupPLL0(void);
+void feedSeq(void);
+void connectPLL0(void);
+
+char pass[] = "embedded";
+int n=8;
+int i=0;
+int main(void)
+{
+	PINSEL0 = 0x00000000;		// Enable GPIO on all pins	
+ PINSEL1 = 0x00000000;
+ PINSEL2 = 0x00000000;
+IO1DIR = (1<<16) | (1<<17) | (1<<18) | (1<<19);
+IO0DIR = (1<<11) ;
+	initClocks(); // Set CCLK=60Mhz and PCLK=60Mhz 
+	initUART0();
+	LED1_OFF();
+	BUZZER_OFF();
+	while(1)		
+	{
+		char c = U0Read(); // Read Data from Rx
+		U0Write(c);
+		//U0Write(pass[i]);
+		//U0Write(NEW_LINE);
+		if (i>=n-1){
+			LED1_ON();
+			break;
+		}
+		if( c == '\n' ) // Check if user pressed Enter key
+		{
+			i=0;
+			LED1_OFF();
+			BUZZER_OFF();
+		}
+		else if (c == pass[i]){
+			i++;
+		}
+		else{
+			BUZZER_ON();
+		}
+	}
+	
+	return 0;
+}
+
+void initUART0(void)
+{
+	PINSEL0 = 0x5;  /* Select TxD for P0.0 and RxD for P0.1 */
+	U0LCR = 3 | (1<<7) ; /* 8 bits, no Parity, 1 Stop bit | DLAB set to 1  */
+	U0DLL = 110;
+	U0DLM = 1;   
+	U0FDR = (MULVAL<<4) | DIVADDVAL; /* MULVAL=15(bits - 7:4) , DIVADDVAL=0(bits - 3:0)  */
+	U0LCR &= 0x0F; // Set DLAB=0 to lock MULVAL and DIVADDVAL
+	//BaudRate is now ~9600 and we are ready for UART communication!
+}
+
+void U0Write(char data)
+{
+	while ( !(U0LSR & THRE ) ); // wait till the THR is empty
+	// now we can write to the Tx FIFO
+	U0THR = data;
+}
+
+char U0Read(void)
+{
+	while( !(U0LSR & RDR ) ); // wait till any data arrives into Rx FIFO
+	return U0RBR;
+}
+
+void initClocks(void)
+{
+	setupPLL0();
+	feedSeq(); //sequence for locking PLL to desired freq.
+	connectPLL0();
+	feedSeq(); //sequence for connecting the PLL as system clock
+
+	//SysClock is now ticking @ 60Mhz!
+	   
+	VPBDIV = 0x01; // PCLK is same as CCLK i.e 60Mhz
+
+	//Using PLL settings as shown in : http://www.ocfreaks.com/lpc214x-pll-tutorial-for-cpu-and-peripheral-clock/
+	//PLL0 Now configured!
+}
+
+
+//---------PLL Related Functions :---------------
+
+void setupPLL0(void)
+{
+	//Note : Assuming 12Mhz Xtal is connected to LPC2148.
+
+	PLL0CON = 0x01; // PPLE=1 & PPLC=0 so it will be enabled
+					// but not connected after FEED sequence
+	PLL0CFG = 0x24; // set the multipler to 5 (i.e actually 4)
+					// i.e 12x5 = 60 Mhz (M - 1 = 4)!!!
+					// Set P=2 since we want FCCO in range!!!
+					// So , Assign PSEL =01 in PLL0CFG as per the table.
+}
+
+void feedSeq(void)
+{
+	PLL0FEED = 0xAA;
+	PLL0FEED = 0x55;
+}
+
+void connectPLL0(void)
+{
+	// check whether PLL has locked on to the desired freq by reading the lock bit
+	// in the PPL0STAT register
+
+	while( !( PLL0STAT & PLOCK ));
+
+	// now enable(again) and connect
+	PLL0CON = 0x03;
+}
+-----------------------------------------------
+modify numbers
+----------------------------------------
+#include <lpc214x.h>
+#include <stdio.h>
+#define PLOCK 0x00000400 // for PLL
+#define THRE (1<<5) // Transmit Holding Register Empty
+#define RDR (1<<0) // Receiver Data Ready
+#define MULVAL 15
+#define DIVADDVAL 1
+#define NEW_LINE 0xA // Character for new line .. analogus to '\n'
+#define ENTER 0xD // Ascii code for Enter 
+
+void initUART0(void);
+void U0Write(char data);
+char U0Read(void);
+void initClocks(void);
+
+void setupPLL0(void);
+void feedSeq(void);
+void connectPLL0(void);
+
+#define DATA_PORT() IO0SET=(1<<16)         //Function to select data port on LCD
+#define READ_DATA() IO0SET=(1<<17)         //Function to select read operation on LCD
+#define EN_HI() IO0SET=(1<<18)             //Function to Enable LCD
+
+
+#define COMMAND_PORT() IO0CLR=(1<<16)      //Function to select command port on LCD
+#define WRITE_DATA() IO0CLR=(1<<17)          //Function to select write operation on LCD
+#define EN_LOW() IO0CLR=(1<<18)              //Function to disable LCD
+
+unsigned char String1[16]={"19CSE303"};
+unsigned char String2[16]={"ARM LPC2148"};
+
+void Delay(unsigned char j)
+{  
+ unsigned int  i;
+ for(;j>0;j--)
+ {
+  for(i=0; i<60000; i++);
+ } 
+}
+
+void Delay_Small(unsigned char j)
+{
+ unsigned int  i;
+ for(;j>0;j--)
+ {
+  for(i=0; i<1000; i++);
+ } 
+}
+                               
+
+unsigned char Busy_Wait()               //This function checks the busy status of LCD
+{
+ unsigned int temp=0;
+ EN_LOW();
+ COMMAND_PORT();
+ READ_DATA();
+ 
+ IO0PIN&=0xFF87FFFF;      
+ IO0DIR&=0xFF87FFFF;
+ IO0PIN|=0x00400000;
+ 
+ do{
+ EN_HI();
+ EN_LOW();
+ EN_HI();
+ EN_LOW();
+ temp=IO0PIN;
+ }
+ while((temp & 0x00400000)==0x00400000);
+ EN_LOW();
+ WRITE_DATA();
+ IO0DIR&=0xFF80FFFF;
+ IO0DIR|=0x007F0000;
+ return (0);
+}    
+
+
+void LCD_Command(unsigned int data)              //This function is used to send LCD commands
+{
+ unsigned int temp=0;
+ EN_LOW();
+ COMMAND_PORT();
+ WRITE_DATA();
+ 
+ temp=data;
+ //IO0PIN&=0xFF87FFFF;
+ IO0PIN&=0x00010000;
+ IO0PIN|=(temp & 0xF0) << 15;
+
+ EN_HI();
+ EN_LOW();
+ 
+ temp=data & 0x0F;
+ //IO0PIN&=0xFF87FFFF;
+ IO0PIN&=0x00010000;
+ IO0PIN|=(temp) << 19;
+
+ EN_HI();
+ EN_LOW();
+ //while(Busy_Wait());
+ Delay(10);
+} 
+
+
+void LCD_Data(unsigned int data)           //This function is used to send data to LCD
+{
+ unsigned int temp=0;
+ EN_LOW();
+ DATA_PORT();
+ WRITE_DATA();
+ 
+ temp=data;
+ //IO0PIN&=0xFF87FFFF;
+ IO0PIN&=0x00010000;
+ IO0PIN|=(temp & 0xF0) << 15;
+
+ EN_HI();
+ EN_LOW();
+ 
+ temp=data & 0x0F;
+ 
+ //IO0PIN&=0xFF87FFFF;
+ IO0PIN&=0x00870000;
+ IO0PIN|=(temp) << 19;
+
+ EN_HI();
+ EN_LOW();
+ Delay_Small(1);
+}
+
+void LCD_Init()
+{
+ LCD_Command(0x02);        
+ LCD_Command(0x28);
+ LCD_Command(0x0C);
+ LCD_Command(0x06);
+}
+
+
+void LCD_String(unsigned char *data)
+{
+ while(*data)
+ {
+  LCD_Data(*data);
+  data++;
+ } 
+}  
+
+
+int odd = 0;
+int even = 0;
+int x;
+
+char chareven[5];
+char charodd[5];
+
+unsigned char string1[100];
+unsigned char string2[100];
+
+int isprime(int x)
+{
+    int count = 0;
+    int i=1;
+    for(i = 1;i<=x;i++)
+    {
+        if(x%i == 0)
+        {
+            count++;
+        }
+    }
+    
+    if(count == 2)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+int main(void)
+{
+    int i=0;
+
+    initClocks(); // Set CCLK=60Mhz and PCLK=60Mhz 
+    initUART0();
+    
+    while(1)        
+    {
+        char c = U0Read(); // Read Data from Rx
+        if( c == '$' ) // Check if user pressed Enter key
+        {
+                    string1[i] = '\0';
+                    string2[i]= '\0';
+                    i++;
+            break; // Send New Line ASCII code change line
+        }
+        else
+        {
+            string1[i] = c;
+                        sscanf(&c, "%d", &x);
+                      if(x == 0)
+                        {
+                            x = 1;
+                        }
+                        else if(x == 1)
+                        {
+                            x = 0;
+                        }
+                        else if(isprime(x))
+                        {
+                            x = x-1;
+                        }
+                        else
+                        {
+                            x++;
+                        }
+                        c = x+'0';
+                        string2[i] = c;
+                    i++;
+        }
+    }
+        
+    PINSEL0 = 0x00000000;        // Enable GPIO on all pins
+    PINSEL1 = 0x00000000;
+    PINSEL2 = 0x00000000;
+    
+    Delay(20);
+     IO0DIR = (1<<22) | (1<<21) | (1<<20) | (1<<19) | (1<<18) | (1<<17) | (1<<16);        // Set P0.16, P0.17, P0.18, P0.19, P0.20, P0.21, P0.22 as Output
+ //IO1DIR = (1<<16);
+     
+     LCD_Init();
+     LCD_Command(0x01);
+     Delay(20);
+     LCD_Command(0x80);
+     LCD_String(&string1[0]);
+     LCD_Command(0xC0);
+     LCD_String(&string2[0]);
+    return 0;
+}
+
+void initUART0(void)
+{
+    PINSEL0 = 0x5;  /* Select TxD for P0.0 and RxD for P0.1 */
+    U0LCR = 3 | (1<<7) ; /* 8 bits, no Parity, 1 Stop bit | DLAB set to 1  */
+    U0DLL = 110;
+    U0DLM = 1;   
+    U0FDR = (MULVAL<<4) | DIVADDVAL; /* MULVAL=15(bits - 7:4) , DIVADDVAL=0(bits - 3:0)  */
+    U0LCR &= 0x0F; // Set DLAB=0 to lock MULVAL and DIVADDVAL
+    //BaudRate is now ~9600 and we are ready for UART communication!
+}
+
+void U0Write(char data)
+{
+    while ( !(U0LSR & THRE ) ); // wait till the THR is empty
+    // now we can write to the Tx FIFO
+    U0THR = data;
+}
+
+char U0Read(void)
+{
+    while( !(U0LSR & RDR ) ); // wait till any data arrives into Rx FIFO
+    return U0RBR;
+}
+
+void initClocks(void)
+{
+    setupPLL0();
+    feedSeq(); //sequence for locking PLL to desired freq.
+    connectPLL0();
+    feedSeq(); //sequence for connecting the PLL as system clock
+
+    //SysClock is now ticking @ 60Mhz!
+       
+    VPBDIV = 0x01; // PCLK is same as CCLK i.e 60Mhz
+
+    //Using PLL settings as shown in : http://www.ocfreaks.com/lpc214x-pll-tutorial-for-cpu-and-peripheral-clock/
+    //PLL0 Now configured!
+}
+
+
+//---------PLL Related Functions :---------------
+
+void setupPLL0(void)
+{
+    //Note : Assuming 12Mhz Xtal is connected to LPC2148.
+
+    PLL0CON = 0x01; // PPLE=1 & PPLC=0 so it will be enabled
+                    // but not connected after FEED sequence
+    PLL0CFG = 0x24; // set the multipler to 5 (i.e actually 4)
+                    // i.e 12x5 = 60 Mhz (M - 1 = 4)!!!
+                    // Set P=2 since we want FCCO in range!!!
+                    // So , Assign PSEL =01 in PLL0CFG as per the table.
+}
+
+void feedSeq(void)
+{
+    PLL0FEED = 0xAA;
+    PLL0FEED = 0x55;
+}
+
+void connectPLL0(void)
+{
+    // check whether PLL has locked on to the desired freq by reading the lock bit
+    // in the PPL0STAT register
+
+    while( !( PLL0STAT & PLOCK ));
+
+    // now enable(again) and connect
+    PLL0CON = 0x03;
+}
+---------------------------------
+#include "LPC214x.h"
+#include "lcd.h"
+
+#define LCD_LINES 2
+#define LCD_COLUMNS 16
+
+char original[LCD_COLUMNS + 1];
+char modified[LCD_COLUMNS + 1];
+
+int main(void)
+{
+    // Initialize the UART0 function
+    init_uart0();
+    
+    // Initialize the LCD
+    lcd_init();
+    
+    int i = 0;
+    char c;
+    
+    while (1)
+    {
+        // Wait for character to be received
+        while (!(U0LSR & 1));
+        
+        // Read character from UART0
+        c = U0RBR;
+        
+        // If the character is a dollar sign, stop reading the string
+        if (c == '$') break;
+        
+        // Store the character in the original string
+        original[i] = c;
+        i++;
+    }
+    
+    // Terminate the original string
+    original[i] = '\0';
+    
+    // Modify the original string to create the modified string
+    for (int i = 0; i < strlen(original); i++)
+    {
+        char c = original[i];
+        
+        if (c == '2') modified[i] = '7';
+        else if (c == '3') modified[i] = '2';
+        else if (c == '5') modified[i] = '3';
+        else if (c == '7') modified[i] = '5';
+        else if (c == '0') modified[i] = '1';
+        else if (c == '1') modified[i] = '0';
+        else if (c == '4') modified[i] = '6';
+        else if (c == '6') modified[i] = '8';
+        else if (c == '8') modified[i] = '9';
+        else if (c == '9') modified[i] = '4';
+        else modified[i] = c;
+    }
+    
+    // Terminate the modified string
+    modified[strlen(original)] = '\0';
+    
+    // Display the original and modified strings on the LCD
+    lcd_puts(original, 1, 0);
+    lcd_puts(modified, 2, 0);
+    
+    return 0;
+}
+
+vowels-alphabets
+----------------------------------------------------------
+#include "LPC214x.h"
+#include "lcd.h"
+
+#define LCD_LINES 2
+#define LCD_COLUMNS 16
+
+char original[LCD_COLUMNS + 1];
+char modified[LCD_COLUMNS + 1];
+
+int main(void)
+{
+    // Initialize the UART0 function
+    init_uart0();
+    
+    // Initialize the LCD
+    lcd_init();
+    
+    int i = 0;
+    char c;
+    
+    while (1)
+    {
+        // Wait for character to be received
+        while (!(U0LSR & 1));
+        
+        // Read character from UART0
+        c = U0RBR;
+        
+        // If the character is a dollar sign, stop reading the string
+        if (c == '$') break;
+        
+        // Store the character in the original string
+        original[i] = c;
+        i++;
+    }
+    
+    // Terminate the original string
+    original[i] = '\0';
+    
+    // Modify the original string to create the modified string
+    for (int i = 0; i < strlen(original); i++)
+    {
+        char c = original[i];
+        
+        if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u')
+        {
+            // Replace vowels with the next vowel in the alphabet
+            switch (c)
+            {
+                case 'a':
+                    modified[i] = 'e';
+                    break;
+                case 'e':
+                    modified[i] = 'i';
+                    break;
+                case 'i':
+                    modified[i] = 'o';
+                    break;
+                case 'o':
+                    modified[i] = 'u';
+                    break;
+                case 'u':
+                    modified[i] = 'a';
+                    break;
+            }
+        }
+        else
+        {
+            // Replace consonants with the previous consonant in the alphabet
+            if (c == 'b') modified[i] = 'z';
+            else if (c == 'c') modified[i] = 'b';
+            else if (c == 'd') modified[i] = 'c';
+            // ...
+            else modified[i] = c - 1;
+        }
+    }
+    
+    // Terminate the modified string
+    modified[strlen(original)] = '\0';
+    
+    // Display the original and modified strings on the LCD
+    lcd_puts(original, 1, 0);
+    lcd_puts(modified, 2, 0);
+    
+    return 0;
+}
+-------------------------------
+cricket
+#include <lpc214x.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#define LED1_ON() IO1SET=(1<<16)	//Macro Functions to turn ON LED
+#define LED2_ON() IO1SET=(1<<17)
+#define LED3_ON() IO1SET=(1<<18)
+#define LED4_ON() IO1SET=(1<<19)
+
+#define LED1_OFF() IO1CLR=(1<<16)	//Macro Functions to turn OFF LED
+#define LED2_OFF() IO1CLR=(1<<17)
+#define LED3_OFF() IO1CLR=(1<<18)
+#define LED4_OFF() IO1CLR=(1<<19)
+
+#define BUZZER_ON() IO0CLR=(1<<11)		 //Macro Functions to turn ON Buzzer
+#define BUZZER_OFF() IO0SET=(1<<11)
+
+#define SW1 (IO0PIN & 0x00008000)
+#define SW2 (IO0PIN & 0x00002000)
+#define SW3 (IO0PIN & 0x00001000)
+#define SW4 (IO0PIN & 0x40000000)
+
+#define DATA_PORT() IO0SET=(1<<16)		 //Function to select data port on LCD
+#define READ_DATA() IO0SET=(1<<17)		 //Function to select read operation on LCD
+#define EN_HI() IO0SET=(1<<18)			 //Function to Enable LCD
+
+
+#define COMMAND_PORT() IO0CLR=(1<<16)	  //Function to select command port on LCD
+#define WRITE_DATA() IO0CLR=(1<<17)		  //Function to select write operation on LCD
+#define EN_LOW() IO0CLR=(1<<18)			  //Function to disable LCD
+
+
+void tostring(char str[], int num){
+    int i, rem, len = 0, n;
+    n = num;
+    while (n != 0)
+    {
+        len++;
+        n /= 10;
+    }
+    for (i = 0; i < len; i++)
+    {
+        rem = num % 10;
+        num = num / 10;
+        str[len - (i + 1)] = rem + '0';
+    }
+    str[len] = '\0';
+}
+void Delay(unsigned char j)
+{  
+ unsigned int  i;
+ for(;j>0;j--)
+ {
+  for(i=0; i<60000; i++);
+ } 
+}
+
+void Delay_Small(unsigned char j)
+{
+ unsigned int  i;
+ for(;j>0;j--)
+ {
+  for(i=0; i<1000; i++);
+ } 
+}
+                               
+
+unsigned char Busy_Wait()			   //This function checks the busy status of LCD
+{
+ unsigned int temp=0;
+ EN_LOW();
+ COMMAND_PORT();
+ READ_DATA();
+ 
+ IO0PIN&=0xFF87FFFF;	  
+ IO0DIR&=0xFF87FFFF;
+ IO0PIN|=0x00400000;
+ 
+ do{
+ EN_HI();
+ EN_LOW();
+ EN_HI();
+ EN_LOW();
+ temp=IO0PIN;
+ }
+ while((temp & 0x00400000)==0x00400000);
+ EN_LOW();
+ WRITE_DATA();
+ IO0DIR&=0xFF80FFFF;
+ IO0DIR|=0x007F0000;
+ return (0);
+}    
+
+
+void LCD_Command(unsigned int data)			  //This function is used to send LCD commands
+{
+ unsigned int temp=0;
+ EN_LOW();
+ COMMAND_PORT();
+ WRITE_DATA();
+ 
+ temp=data;
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp & 0xF0) << 15;
+
+ EN_HI();
+ EN_LOW();
+ 
+ temp=data & 0x0F;
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp) << 19;
+
+ EN_HI();
+ EN_LOW();
+ while(Busy_Wait());
+ Delay(10);
+} 
+
+
+void LCD_Data(unsigned int data)		   //This function is used to send data to LCD
+{
+ unsigned int temp=0;
+ EN_LOW();
+ DATA_PORT();
+ WRITE_DATA();
+ 
+ temp=data;
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp & 0xF0) << 15;
+
+ EN_HI();
+ EN_LOW();
+ 
+ temp=data & 0x0F;
+ 
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp) << 19;
+
+ EN_HI();
+ EN_LOW();
+ Delay_Small(1);
+}
+
+void LCD_INIT()
+{
+ LCD_Command(0x20);
+ LCD_Command(0x28);
+ LCD_Command(0x0C);
+ LCD_Command(0x06);
+}
+
+
+void LCD_STRING(char *data)
+{
+ while(*data)
+ {
+  LCD_Data(*data);
+  data++;
+ } 
+}  
+void delay_ms(uint16_t j) /* Function for delay in milliseconds */
+{
+    uint16_t x,i;
+	for(i=0;i<j;i++)
+	{
+    for(x=0; x<6000; x++);    /* loop to generate 1 millisecond delay with Cclk = 60MHz */
+	}
+}
+
+
+int main(void){
+int unit,cost;
+char str[20],str1[20];
+	LCD_INIT();
+  LCD_Command(0x80);
+  LCD_STRING("Electric Meter:");
+  PINSEL0 = 0x00000000;		// Enable GPIO on all pins
+  PINSEL1 = 0x00000000;
+  PINSEL2 = 0x00000000;
+  IO1DIR = (1<<19) | (1<<18) | (1<<17) | (1<<16);
+  IO0DIR = (0<<12) | (0<<13) | (0<<15) | (0<<30) | (1<<11);
+
+  unit=0;
+  cost=0;
+  tostring(str, unit);
+  tostring(str1, cost);
+  strcat(str,"kWh - Rs." );
+  strcat(str, str1);
+	LCD_Command(0xC0);
+  LCD_STRING(str);
+ while(1){
+	//fan-increase unit by 50kWh
+    if(!SW1){
+    unit+=50;
+    cost=unit*100; //Rs.100 per unit
+    tostring(str, unit);
+    tostring(str1, cost);
+    strcat(str,"kWh - Rs." );
+    strcat(str, str1);
+    LCD_Command(0xC0);
+    LCD_STRING(str);
+    LED1_ON();
+    }		  
+  else{
+    LED1_OFF();
+    }	
+  //TV-increase unit by 150kWh
+  if(!SW2){
+    unit+=150;
+    cost=unit*100; //Rs.100 per unit
+    tostring(str, unit);
+    tostring(str1, cost);
+    strcat(str,"kWh - Rs." );
+    strcat(str, str1);
+    LCD_Command(0xC0);
+    LCD_STRING(str);
+    LED2_ON();
+    }		  
+  else{
+    LED2_OFF();
+    }
+
+//AC-increase unit by 350kWh 
+  if(!SW3){
+    unit+=350;
+    cost=unit*100; //Rs.100 per unit
+    tostring(str, unit);
+    tostring(str1, cost);
+    strcat(str,"kWh - Rs." );
+    strcat(str, str1);
+    LCD_Command(0xC0);
+    LCD_STRING(str);
+    LED3_ON();
+    }	
+  else{
+    LED3_OFF();
+    }	  
+
+//reset
+  if(!SW4){
+    unit=0;
+    cost=0;
+    tostring(str, unit);
+    tostring(str1, cost);
+    strcat(str,"kWh - Rs." );
+    strcat(str, str1);
+    LCD_Command(0xC0);
+    LCD_STRING(str);
+    LED1_ON();
+    LED2_ON();
+    LED3_ON();
+    LED4_ON();
+    BUZZER_ON();
+    delay_ms(1000);	  
+    BUZZER_OFF();
+    }	
+  else{
+    LED1_OFF();
+    LED2_OFF();
+    LED3_OFF();
+    LED4_OFF();
+    }
+	delay_ms(100);
+ }
+
+	
+}
+
+--------------------
+#include <lpc214x.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#define LED1_ON() IO1SET=(1<<16)	//Macro Functions to turn ON LED
+#define LED2_ON() IO1SET=(1<<17)
+#define LED3_ON() IO1SET=(1<<18)
+#define LED4_ON() IO1SET=(1<<19)
+
+#define LED1_OFF() IO1CLR=(1<<16)	//Macro Functions to turn OFF LED
+#define LED2_OFF() IO1CLR=(1<<17)
+#define LED3_OFF() IO1CLR=(1<<18)
+#define LED4_OFF() IO1CLR=(1<<19)
+
+#define BUZZER_ON() IO0CLR=(1<<11)		 //Macro Functions to turn ON Buzzer
+#define BUZZER_OFF() IO0SET=(1<<11)
+
+#define SW1 (IO0PIN & 0x00008000)
+#define SW2 (IO0PIN & 0x00002000)
+#define SW3 (IO0PIN & 0x00001000)
+#define SW4 (IO0PIN & 0x40000000)
+
+
+
+#define DATA_PORT() IO0SET=(1<<16)		 //Function to select data port on LCD
+#define READ_DATA() IO0SET=(1<<17)		 //Function to select read operation on LCD
+#define EN_HI() IO0SET=(1<<18)			 //Function to Enable LCD
+
+
+#define COMMAND_PORT() IO0CLR=(1<<16)	  //Function to select command port on LCD
+#define WRITE_DATA() IO0CLR=(1<<17)		  //Function to select write operation on LCD
+#define EN_LOW() IO0CLR=(1<<18)			  //Function to disable LCD
+
+
+void tostring(char str[], int num){
+    int i, rem, len = 0, n;
+    n = num;
+    while (n != 0)
+    {
+        len++;
+        n /= 10;
+    }
+    for (i = 0; i < len; i++)
+    {
+        rem = num % 10;
+        num = num / 10;
+        str[len - (i + 1)] = rem + '0';
+    }
+    str[len] = '\0';
+}
+void Delay(unsigned char j)
+{  
+ unsigned int  i;
+ for(;j>0;j--)
+ {
+  for(i=0; i<60000; i++);
+ } 
+}
+
+void Delay_Small(unsigned char j)
+{
+ unsigned int  i;
+ for(;j>0;j--)
+ {
+  for(i=0; i<1000; i++);
+ } 
+}
+                               
+
+unsigned char Busy_Wait()			   //This function checks the busy status of LCD
+{
+ unsigned int temp=0;
+ EN_LOW();
+ COMMAND_PORT();
+ READ_DATA();
+ 
+ IO0PIN&=0xFF87FFFF;	  
+ IO0DIR&=0xFF87FFFF;
+ IO0PIN|=0x00400000;
+ 
+ do{
+ EN_HI();
+ EN_LOW();
+ EN_HI();
+ EN_LOW();
+ temp=IO0PIN;
+ }
+ while((temp & 0x00400000)==0x00400000);
+ EN_LOW();
+ WRITE_DATA();
+ IO0DIR&=0xFF80FFFF;
+ IO0DIR|=0x007F0000;
+ return (0);
+}    
+
+
+void LCD_Command(unsigned int data)			  //This function is used to send LCD commands
+{
+ unsigned int temp=0;
+ EN_LOW();
+ COMMAND_PORT();
+ WRITE_DATA();
+ 
+ temp=data;
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp & 0xF0) << 15;
+
+ EN_HI();
+ EN_LOW();
+ 
+ temp=data & 0x0F;
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp) << 19;
+
+ EN_HI();
+ EN_LOW();
+ while(Busy_Wait());
+ Delay(10);
+} 
+
+
+void LCD_Data(unsigned int data)		   //This function is used to send data to LCD
+{
+ unsigned int temp=0;
+ EN_LOW();
+ DATA_PORT();
+ WRITE_DATA();
+ 
+ temp=data;
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp & 0xF0) << 15;
+
+ EN_HI();
+ EN_LOW();
+ 
+ temp=data & 0x0F;
+ 
+ IO0PIN&=0xFF87FFFF;
+ IO0PIN|=(temp) << 19;
+
+ EN_HI();
+ EN_LOW();
+ Delay_Small(1);
+}
+
+void LCD_INIT()
+{
+ LCD_Command(0x20);
+ LCD_Command(0x28);
+ LCD_Command(0x0C);
+ LCD_Command(0x06);
+}
+
+
+void LCD_STRING(char *data)
+{
+ while(*data)
+ {
+  LCD_Data(*data);
+  data++;
+ } 
+}  
+void delay_ms(uint16_t j) /* Function for delay in milliseconds */
+{
+    uint16_t x,i;
+	for(i=0;i<j;i++)
+	{
+    for(x=0; x<6000; x++);    /* loop to generate 1 millisecond delay with Cclk = 60MHz */
+	}
+}
+
+
+int main(void){
+
+int score,wick;
+char str[10],str1[10];
+	LCD_INIT();
+
+ 
+ LCD_Command(0x80);
+
+ LCD_STRING("Cricket Score:");
+PINSEL0 = 0x00000000;		// Enable GPIO on all pins
+ PINSEL1 = 0x00000000;
+ PINSEL2 = 0x00000000;
+
+ IO1DIR = (1<<19) | (1<<18) | (1<<17) | (1<<16);
+ IO0DIR = (0<<12) | (0<<13) | (0<<15) | (0<<30) | (1<<11);
+
+score=0;
+wick=0;
+tostring(str, score);
+    tostring(str1, wick);
+    strcat(str,"-" );
+    strcat(str, str1);
+	 LCD_Command(0xC0);
+ 
+    LCD_STRING(str);
+ while(1){
+    if(!SW1){
+    score++;
+    tostring(str, score);
+    tostring(str1, wick);
+    strcat(str,"-" );
+    strcat(str, str1);
+	
+ LCD_Command(0xC0);
+    LCD_STRING(str);
+    LED1_ON();
+    }		  
+  else{
+    LED1_OFF();
+    }	
+  
+  if(!SW2){
+    score+=4;
+    tostring(str, score);
+    tostring(str1, wick);
+    strcat(str,"-" );
+    strcat(str, str1);
+	
+ LCD_Command(0xC0);
+ 
+    LCD_STRING(str);
+
+    LED2_ON();
+    }		  
+  else{
+    LED2_OFF();
+    }	 
+  if(!SW3){
+    score+=6;
+    tostring(str, score);
+    tostring(str1, wick);
+    strcat(str,"-" );
+    strcat(str, str1);
+	
+ LCD_Command(0xC0);
+ 
+    LCD_STRING(str);
+    LED3_ON();
+    }	
+  else{
+    LED3_OFF();
+    }	  
+
+  if(!SW4 && wick<=10){
+    wick++;
+    tostring(str, score);
+    tostring(str1, wick);
+    strcat(str,"-" );
+    strcat(str, str1);
+	
+ LCD_Command(0xC0);
+ 
+    LCD_STRING(str);
+    LED1_ON();
+    LED2_ON();
+    LED3_ON();
+    LED4_ON();
+    if(wick==10){
+	
+ LCD_Command(0xC0);
+ 
+        LCD_STRING("All OUT!!");
+		BUZZER_ON();
+		delay_ms(1000);
+		BUZZER_OFF();
+		break;
+		
+		}		  
+    }	
+  else{
+    LED1_OFF();
+    LED2_OFF();
+    LED3_OFF();
+    LED4_OFF();
+    }
+	delay_ms(100);
+ }
+
+	
+}
+
+
