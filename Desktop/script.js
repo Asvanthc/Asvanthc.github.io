@@ -114,7 +114,7 @@ class VideoPlayer {
 }
 
 // Example usage
-const videoUrls = ["video1.mp4", "video2.mp4", "video3.mp4"];
+const videoUrls = ["video1.mp4", "video2.mp4", "video1.mp4"];
 const player = new VideoPlayer(videoUrls);
 player.initialize();
 
