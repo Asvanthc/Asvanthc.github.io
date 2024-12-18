@@ -39,13 +39,13 @@ class VideoPlayer {
 
     // Center the video element to fill the screen
     centerVideo(videoElement) {
-        // Make sure the video fills the screen
+        // Ensure video stretches to cover the full screen
         videoElement.style.position = "absolute";
         videoElement.style.top = "0";
         videoElement.style.left = "0";
         videoElement.style.width = "100%";
         videoElement.style.height = "100%";
-        videoElement.style.objectFit = "cover"; // Ensures the video fully covers the screen
+        videoElement.style.objectFit = "cover"; // Ensures the video covers the full screen while maintaining aspect ratio
     }
 
     // Play the video
