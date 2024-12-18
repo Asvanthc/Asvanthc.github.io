@@ -93,7 +93,10 @@ class VideoPlayer {
         // Ensure the next video is prepared properly before playing
         this.prepareVideo(nextVideo, this.videoUrls[this.currentIndex])
             .then(() => this.centerVideo(nextVideo))
-            .then(() => this.playVideo(nextVideo));
+            .then(() => {
+                nextVideo.style.transform = "translateX(100%)"; // Start off-screen to the right
+                this.playVideo(nextVideo);
+            });
 
         this.isVideo1Playing = !this.isVideo1Playing; // Toggle active video
     }
