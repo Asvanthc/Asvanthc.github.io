@@ -65,6 +65,7 @@ class VideoPlayer {
     // Play the video
     playVideo(videoElement) {
         videoElement.style.opacity = 1; // Make the video visible
+        videoElement.style.transform = "translateX(0)";
         videoElement.play().catch((error) => {
             console.error("Error playing video:", error);
         });
@@ -72,10 +73,13 @@ class VideoPlayer {
 
     // Stop the video and clear resources
     stopVideo(videoElement) {
-        videoElement.pause();
-        videoElement.removeAttribute("src");
-        videoElement.load();
-        videoElement.style.opacity = 0; // Hide the video
+        videoElement.style.transform = "translateX(-100%)"; // Slide the video off-screen to the left
+        setTimeout(() => {
+            videoElement.pause();
+            videoElement.removeAttribute("src");
+            videoElement.load();
+            videoElement.style.opacity = 0; // Hide the video
+        }, 1000); // Ensure the slide effect completes before stopping
     }
 
     // Handle video ending and load the next one
