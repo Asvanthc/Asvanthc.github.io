@@ -56,16 +56,13 @@ class VideoPlayer {
         videoElement.style.position = "absolute";
         videoElement.style.top = "50%";
         videoElement.style.left = "50%";
-        videoElement.style.transform = "translate(-50%, -50%)";
-
-        // Random background color for the video element
-        videoElement.style.backgroundColor = `hsl(${Math.random() * 360}, 50%, 50%)`;
+        videoElement.style.transform = "translate(-50%, -50%)"; // Ensure it's centered
     }
 
     // Play the video
     playVideo(videoElement) {
         videoElement.style.opacity = 1; // Make the video visible
-        videoElement.style.transform = "translateX(0)";
+        videoElement.style.transform = "translateX(0)"; // Slide the video into view
         videoElement.play().catch((error) => {
             console.error("Error playing video:", error);
         });
@@ -124,4 +121,3 @@ class VideoPlayer {
 const videoUrls = ["video1.mp4", "video2.mp4", "video1.mp4"];
 const player = new VideoPlayer(videoUrls);
 player.initialize();
-
