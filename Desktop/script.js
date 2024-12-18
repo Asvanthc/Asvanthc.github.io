@@ -37,26 +37,15 @@ class VideoPlayer {
         });
     }
 
-    // Center the video element on the screen
+    // Center the video element to fill the screen
     centerVideo(videoElement) {
-        const vw = videoElement.videoWidth || 16;
-        const vh = videoElement.videoHeight || 9;
-        const fw = window.innerWidth;
-        const fh = window.innerHeight;
-        const ar = vw / vh;
-
-        if (ar > fw / fh) {
-            videoElement.style.width = "100%";
-            videoElement.style.height = "auto";
-        } else {
-            videoElement.style.width = "auto";
-            videoElement.style.height = "100%";
-        }
-
+        // Make sure the video fills the screen
         videoElement.style.position = "absolute";
-        videoElement.style.top = "50%";
-        videoElement.style.left = "50%";
-        videoElement.style.transform = "translate(-50%, -50%)"; // Ensure it's centered
+        videoElement.style.top = "0";
+        videoElement.style.left = "0";
+        videoElement.style.width = "100%";
+        videoElement.style.height = "100%";
+        videoElement.style.objectFit = "cover"; // Ensures the video fully covers the screen
     }
 
     // Play the video
