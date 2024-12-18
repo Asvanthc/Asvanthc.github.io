@@ -48,16 +48,16 @@ class VideoPlayer {
         videoElement.style.objectFit = "cover"; // Ensures the video covers the full screen while maintaining aspect ratio
     }
 
-    // Play the video
+    // Play the video with right-to-left transition
     playVideo(videoElement) {
         videoElement.style.opacity = 1; // Make the video visible
-        videoElement.style.transform = "translateX(0)"; // Slide the video into view
+        videoElement.style.transform = "translateX(0)"; // Slide the video into view from right to left
         videoElement.play().catch((error) => {
             console.error("Error playing video:", error);
         });
     }
 
-    // Stop the video and clear resources
+    // Stop the video and clear resources with left-to-right transition
     stopVideo(videoElement) {
         videoElement.style.transform = "translateX(-100%)"; // Slide the video off-screen to the left
         setTimeout(() => {
@@ -65,22 +65,26 @@ class VideoPlayer {
             videoElement.removeAttribute("src");
             videoElement.load();
             videoElement.style.opacity = 0; // Hide the video
+            // Move the current video to the right end after it exits
+            videoElement.style.transform = "translateX(100%)";
         }, 1000); // Ensure the slide effect completes before stopping
     }
 
-    // Handle video ending and load the next one
+    // Handle video ending and load the next one (always from right to left)
     handleVideoEnd() {
         const currentVideo = this.isVideo1Playing ? this.videoElement1 : this.videoElement2;
         const nextVideo = this.isVideo1Playing ? this.videoElement2 : this.videoElement1;
 
+        // Move the current video out of the screen to the left and then position it to the right end
         this.stopVideo(currentVideo);
         this.currentIndex = (this.currentIndex + 1) % this.videoUrls.length;
 
-        // Ensure the next video is prepared properly before playing
+        // Prepare the next video and ensure it's off-screen to the right before playing
         this.prepareVideo(nextVideo, this.videoUrls[this.currentIndex])
             .then(() => this.centerVideo(nextVideo))
             .then(() => {
-                nextVideo.style.transform = "translateX(100%)"; // Start off-screen to the right
+                // Start next video off-screen to the right
+                nextVideo.style.transform = "translateX(100%)";
                 this.playVideo(nextVideo);
             });
 
@@ -99,7 +103,11 @@ class VideoPlayer {
         // Initialize the first video element
         this.prepareVideo(this.videoElement1, this.videoUrls[this.currentIndex])
             .then(() => this.centerVideo(this.videoElement1))
-            .then(() => this.playVideo(this.videoElement1))
+            .then(() => {
+                // Start first video off-screen to the right
+                this.videoElement1.style.transform = "translateX(100%)";
+                this.playVideo(this.videoElement1);
+            })
             .catch((error) => {
                 console.error("Error initializing video player:", error);
             });
