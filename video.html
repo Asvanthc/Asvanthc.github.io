@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Grid</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(33%, 1fr));
+            grid-template-rows: repeat(auto-fit, minmax(33%, 1fr));
+            width: 100vw;
+            height: 100vh;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-grid" id="videoGrid"></div>
+    
+    <script>
+        const videos = [
+            { title: "Big Buck Bunny", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" },
+            { title: "Elephant Dream", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" },
+            { title: "For Bigger Blazes", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" },
+            { title: "For Bigger Escape", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4" },
+            { title: "For Bigger Fun", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4" },
+            { title: "For Bigger Joyrides", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4" },
+            { title: "For Bigger Meltdowns", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4" },
+            { title: "Sintel", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4" },
+            { title: "Tears of Steel", src: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" }
+        ];
+
+        const videoGrid = document.getElementById("videoGrid");
+        
+        videos.forEach(video => {
+            const videoElement = document.createElement("video");
+            videoElement.src = video.src;
+            videoElement.autoplay = true;
+            videoElement.loop = true;
+            videoElement.muted = true;
+            videoGrid.appendChild(videoElement);
+        });
+    </script>
+</body>
+</html>
+
