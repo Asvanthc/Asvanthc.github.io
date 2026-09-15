@@ -27,11 +27,15 @@ const year = new Date().getFullYear();
       <div class="footer-col">
         <h2 class="footer-col-title">Elsewhere</h2>
         {
-          socials.map((s) => (
-            <a href={s.href} rel={s.icon === 'mail' ? undefined : 'me noopener'} target={s.icon === 'mail' ? undefined : '_blank'}>
-              <Icon name={s.icon} size={13} /> {s.label}
-            </a>
-          ))
+          socials.map((s) => {
+            // mailto: and tel: are handled by the OS — never open them in a new tab.
+            const external = s.href.startsWith('http');
+            return (
+              <a href={s.href} rel={external ? 'me noopener' : undefined} target={external ? '_blank' : undefined}>
+                <Icon name={s.icon} size={13} /> {s.label}
+              </a>
+            );
+          })
         }
         <a href="/rss.xml"><Icon name="rss" size={13} /> RSS</a>
       </div>
