@@ -29,7 +29,7 @@ export const roles: Role[] = [
     start: '2024-08',
     end: 'present',
     period: 'August 2024 — Present',
-    location: 'Coimbatore, India',
+    location: 'Chennai, India',
     summary:
       'Zeetaminds builds a digital signage platform: a content management system that schedules and delivers media to displays running in shops, offices, campuses and public spaces. I work across the backend that serves those displays, the identity layer that guards it, and the device-side code that has to behave the same on hardware from three different vendors.',
     areas: [
