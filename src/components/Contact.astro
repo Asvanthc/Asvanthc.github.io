@@ -1,0 +1,134 @@
+---
+import Icon from './Icon.astro';
+import { site, socials } from '../data/site';
+---
+
+<div class="contact">
+  <div class="grid-bg contact-grid"></div>
+
+  <div class="contact-inner" data-reveal>
+    <h2 class="contact-title" id="contact-heading">Have an interesting system to build?</h2>
+    <p class="contact-body">
+      I like talking about backend architecture, identity, the strange things devices do in
+      production, and where language models genuinely help in a system that still has to be
+      correct. If you are working on something in that space — or you think I have got
+      something wrong in one of my notes — I would like to hear about it.
+    </p>
+
+    <div class="contact-actions">
+      <a class="btn btn-primary" href={`mailto:${site.email}`}>
+        <Icon name="mail" /> {site.email}
+      </a>
+      <a class="btn btn-secondary" href={site.resume} download>
+        <Icon name="download" /> Download résumé
+      </a>
+    </div>
+
+    <ul class="contact-socials">
+      {
+        socials.map((s) => (
+          <li>
+            <a
+              class="social"
+              href={s.href}
+              rel={s.icon === 'mail' ? undefined : 'me noopener'}
+              target={s.icon === 'mail' ? undefined : '_blank'}
+            >
+              <Icon name={s.icon} size={15} />
+              <span class="social-label">{s.label}</span>
+              <span class="social-handle">{s.handle}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</div>
+
+<style>
+  .contact {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+    overflow: hidden;
+    padding: clamp(2rem, 6vw, 3.75rem);
+  }
+
+  .contact-grid {
+    mask-image: radial-gradient(ellipse 70% 80% at 20% 0%, #000 20%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 80% at 20% 0%, #000 20%, transparent 80%);
+  }
+
+  .contact-inner {
+    position: relative;
+    z-index: 1;
+  }
+
+  .contact-title {
+    font-size: var(--step-3);
+    letter-spacing: -0.028em;
+    max-width: 18ch;
+  }
+
+  .contact-body {
+    margin-top: 1.1rem;
+    color: var(--text-muted);
+    font-size: var(--step-0);
+    max-width: 60ch;
+    text-wrap: pretty;
+  }
+
+  .contact-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.9rem;
+  }
+
+  .contact-socials {
+    list-style: none;
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    margin-top: 2.5rem;
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .social {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+    transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease),
+      background var(--dur) var(--ease);
+    min-width: 0;
+  }
+
+  .social:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+  }
+
+  .social-label {
+    font-size: var(--step--1);
+    font-weight: 540;
+    flex: none;
+  }
+
+  .social-handle {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    margin-left: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>

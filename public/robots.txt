@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /archive
+Disallow: /casestudy_car/
+Disallow: /demo/
+Disallow: /smartAtt/
+Disallow: /MSD/
+Disallow: /asv_c/profile.html
+Disallow: /asv_c/menu.html
+
+Sitemap: https://asvanthc.github.io/sitemap-index.xml

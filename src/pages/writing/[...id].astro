@@ -1,0 +1,22 @@
+---
+import { render } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import { getPosts, readingTime } from '../../lib/posts';
+import { mdxComponents } from '../../components/mdx';
+
+export const getStaticPaths = (async () => {
+  const posts = await getPosts();
+  return posts.map((post, i) => ({
+    params: { id: post.id },
+    props: { post, prev: posts[i - 1], next: posts[i + 1] },
+  }));
+}) satisfies GetStaticPaths;
+
+const { post, prev, next } = Astro.props;
+const { Content, headings } = await render(post);
+---
+
+<ArticleLayout post={post} headings={headings} minutes={readingTime(post)} prev={prev} next={next}>
+  <Content components={mdxComponents} />
+</ArticleLayout>

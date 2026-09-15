@@ -1,0 +1,132 @@
+---
+import type { MarkdownHeading } from 'astro';
+
+interface Props {
+  headings: MarkdownHeading[];
+}
+const { headings } = Astro.props;
+/** h2 and h3 only — deeper levels make the rail noisy rather than useful. */
+const items = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{
+  items.length > 2 && (
+    <nav class="toc" aria-labelledby="toc-title" data-toc>
+      <h2 class="toc-title" id="toc-title">On this page</h2>
+      <ol class="toc-list">
+        {items.map((h) => (
+          <li class={`toc-item depth-${h.depth}`}>
+            <a href={`#${h.slug}`} data-toc-link={h.slug}>
+              {h.text}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
+<style>
+  .toc {
+    position: sticky;
+    top: 5.5rem;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.5rem;
+  }
+
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 400;
+    margin-bottom: 0.8rem;
+  }
+
+  .toc-list {
+    list-style: none;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .toc-item a {
+    display: block;
+    padding: 0.35rem 0 0.35rem 0.85rem;
+    margin-left: -1px;
+    border-left: 1px solid transparent;
+    font-size: var(--step--1);
+    line-height: 1.45;
+    color: var(--text-faint);
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+
+  .toc-item a:hover { color: var(--text); }
+
+  .toc-item a[aria-current='true'] {
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  .depth-3 a {
+    padding-left: 1.7rem;
+    font-size: var(--step--2);
+  }
+
+  @media (max-width: 1079px) {
+    .toc {
+      position: static;
+      max-height: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      background: var(--surface);
+      margin-bottom: 2rem;
+    }
+  }
+</style>
+
+<script>
+  const nav = document.querySelector<HTMLElement>('[data-toc]');
+  if (nav) {
+    const links = new Map<string, HTMLAnchorElement>();
+    nav.querySelectorAll<HTMLAnchorElement>('[data-toc-link]').forEach((a) => {
+      links.set(a.dataset.tocLink!, a);
+    });
+
+    const targets = [...links.keys()]
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+
+    if (targets.length) {
+      let activeId = '';
+      const setActive = (id: string) => {
+        if (id === activeId) return;
+        activeId = id;
+        links.forEach((a, key) => {
+          if (key === id) a.setAttribute('aria-current', 'true');
+          else a.removeAttribute('aria-current');
+        });
+      };
+
+      const observer = new IntersectionObserver(
+        () => {
+          // Pick the last heading whose top has passed the reading line.
+          const line = window.innerHeight * 0.25;
+          let current = targets[0];
+          for (const t of targets) {
+            if (t.getBoundingClientRect().top <= line) current = t;
+            else break;
+          }
+          setActive(current.id);
+        },
+        { rootMargin: '-25% 0px -70% 0px', threshold: [0, 1] },
+      );
+
+      targets.forEach((t) => observer.observe(t));
+    }
+  }
+</script>

@@ -1,0 +1,401 @@
+---
+import type { MarkdownHeading } from 'astro';
+import BaseLayout from './BaseLayout.astro';
+import Prose from '../components/Prose.astro';
+import Toc from '../components/Toc.astro';
+import Icon from '../components/Icon.astro';
+import { site } from '../data/site';
+import { formatDate, isoDate, type Post } from '../lib/posts';
+
+interface Props {
+  post: Post;
+  headings: MarkdownHeading[];
+  minutes: number;
+  prev?: Post;
+  next?: Post;
+}
+const { post, headings, minutes, prev, next } = Astro.props;
+const { title, description, summary, date, updated, tags, draft } = post.data;
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  headline: title,
+  description,
+  datePublished: date.toISOString(),
+  ...(updated && { dateModified: updated.toISOString() }),
+  author: { '@type': 'Person', name: site.name, url: site.url },
+  publisher: { '@type': 'Person', name: site.name, url: site.url },
+  mainEntityOfPage: { '@type': 'WebPage', '@id': new URL(`/writing/${post.id}/`, site.url).href },
+  keywords: tags.join(', '),
+  inLanguage: 'en',
+};
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  type="article"
+  publishedDate={date}
+  tags={tags}
+  jsonLd={articleSchema}
+  noindex={draft}
+>
+  <div class="reading-progress" aria-hidden="true"><span data-progress></span></div>
+
+  <article class="article">
+    <header class="article-head wrap">
+      <a class="back" href="/writing">
+        <span class="back-arrow" aria-hidden="true">←</span> Engineering notes
+      </a>
+
+      {draft && <p class="draft-flag">Draft — not listed publicly</p>}
+
+      <h1 class="article-title">{title}</h1>
+      {summary && <p class="article-summary">{summary}</p>}
+
+      <div class="article-meta">
+        <span class="author">
+          <span class="author-mark" aria-hidden="true"></span>
+          <a href="/#about" rel="author">{site.name}</a>
+        </span>
+        <span class="sep" aria-hidden="true">·</span>
+        <time datetime={isoDate(date)}>{formatDate(date)}</time>
+        {
+          updated && (
+            <>
+              <span class="sep" aria-hidden="true">·</span>
+              <span>updated {formatDate(updated)}</span>
+            </>
+          )
+        }
+        <span class="sep" aria-hidden="true">·</span>
+        <span>{minutes} min read</span>
+      </div>
+
+      {
+        tags.length > 0 && (
+          <ul class="article-tags">
+            {tags.map((t) => (
+              <li class="tag">{t}</li>
+            ))}
+          </ul>
+        )
+      }
+    </header>
+
+    <div class="article-body wrap">
+      <aside class="article-aside">
+        <Toc headings={headings} />
+      </aside>
+
+      <div class="article-content">
+        <Prose>
+          <slot />
+        </Prose>
+
+        <footer class="article-foot">
+          <div class="byline">
+            <img
+              class="byline-avatar"
+              src="/avatar.webp"
+              alt=""
+              width="48"
+              height="48"
+              loading="lazy"
+              decoding="async"
+            />
+            <div>
+              <p class="byline-name">Written by {site.name}</p>
+              <p class="byline-role">
+                {site.role} at {site.company}. I write these mostly after debugging something and
+                finding out my mental model was wrong. If I have got something wrong here,
+                <a class="link" href={`mailto:${site.email}`}>tell me</a>.
+              </p>
+              <div class="byline-links">
+                <a class="btn btn-ghost" href="https://github.com/asvanthc" target="_blank" rel="me noopener">
+                  <Icon name="github" size={14} /> GitHub
+                </a>
+                <a class="btn btn-ghost" href="https://www.linkedin.com/in/asvanth/" target="_blank" rel="me noopener">
+                  <Icon name="linkedin" size={14} /> LinkedIn
+                </a>
+                <a class="btn btn-ghost" href={`mailto:${site.email}`}>
+                  <Icon name="mail" size={14} /> Email
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {
+            (prev || next) && (
+              <nav class="pager" aria-label="More notes">
+                {prev ? (
+                  <a class="pager-link" href={`/writing/${prev.id}/`}>
+                    <span class="pager-dir">← Newer</span>
+                    <span class="pager-title">{prev.data.title}</span>
+                  </a>
+                ) : (
+                  <span />
+                )}
+                {next && (
+                  <a class="pager-link is-next" href={`/writing/${next.id}/`}>
+                    <span class="pager-dir">Older →</span>
+                    <span class="pager-title">{next.data.title}</span>
+                  </a>
+                )}
+              </nav>
+            )
+          }
+        </footer>
+      </div>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .reading-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 110;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .reading-progress span {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--signal));
+    transition: width 90ms linear;
+  }
+
+  .article-head {
+    padding-top: clamp(2.5rem, 6vw, 4rem);
+    padding-bottom: clamp(1.75rem, 4vw, 2.5rem);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Block-level so the draft flag / title below start on their own line. */
+  .back {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: var(--step--1);
+    color: var(--text-faint);
+    transition: color var(--dur) var(--ease);
+    margin-bottom: 1.5rem;
+  }
+
+  .back:hover { color: var(--accent); }
+  .back:hover .back-arrow { translate: -2px 0; }
+  .back-arrow { transition: translate var(--dur) var(--ease); display: inline-block; }
+
+  .draft-flag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: var(--amber-wash);
+    color: var(--amber);
+    border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+    margin-bottom: 1rem;
+  }
+
+  .article-title {
+    font-size: var(--step-4);
+    letter-spacing: -0.03em;
+    max-width: 22ch;
+  }
+
+  .article-summary {
+    margin-top: 1.1rem;
+    font-size: var(--step-1);
+    color: var(--text-muted);
+    max-width: 62ch;
+    text-wrap: pretty;
+  }
+
+  .article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.6rem;
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+  }
+
+  .author {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--text-muted);
+  }
+
+  .author a { transition: color var(--dur) var(--ease); }
+  .author a:hover { color: var(--accent); }
+
+  .author-mark {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, var(--accent), var(--signal));
+    flex: none;
+  }
+
+  .byline-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex: none;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .sep { opacity: 0.5; }
+
+  .article-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+    margin-top: 1.1rem;
+  }
+
+  /* --- Body: TOC rail + content --- */
+  .article-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-block: clamp(2rem, 5vw, 3rem) clamp(3rem, 7vw, 5rem);
+  }
+
+  @media (min-width: 1080px) {
+    .article-body {
+      grid-template-columns: 210px minmax(0, 1fr);
+      gap: 3.5rem;
+      align-items: start;
+    }
+  }
+
+  .article-content { min-width: 0; }
+
+  /* --- Footer --- */
+  .article-foot {
+    margin-top: 3.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .byline {
+    display: flex;
+    gap: 0.9rem;
+    align-items: flex-start;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .byline-name {
+    font-weight: 600;
+    font-size: var(--step-0);
+  }
+
+  .byline-role {
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+    line-height: 1.6;
+    max-width: 58ch;
+  }
+
+  .byline-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 1rem;
+  }
+
+  .pager {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    margin-top: 1rem;
+  }
+
+  .pager-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+
+  .pager-link:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+  }
+
+  .is-next { text-align: right; align-items: flex-end; }
+
+  .pager-dir {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+  }
+
+  .pager-title {
+    font-size: var(--step--1);
+    color: var(--text);
+    line-height: 1.45;
+  }
+
+  .pager-link:hover .pager-title { color: var(--accent); }
+</style>
+
+<script>
+  const bar = document.querySelector<HTMLElement>('[data-progress]');
+  const article = document.querySelector<HTMLElement>('.article-content');
+
+  if (bar && article) {
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const rect = article.getBoundingClientRect();
+      const top = rect.top + window.scrollY; // article top, in document coordinates
+      const height = rect.height;
+      if (height <= 0) {
+        bar.style.width = '0%';
+        return;
+      }
+      /*
+       * Progress is how far the bottom of the viewport has travelled through the
+       * article — not how far the window has scrolled. Measuring against the
+       * document would never reach 100%, because the footer sits below the
+       * article and occupies the final screenful.
+       */
+      const read = window.scrollY + window.innerHeight - top;
+      const pct = Math.min(100, Math.max(0, (read / height) * 100));
+      bar.style.width = `${pct}%`;
+    };
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+  }
+</script>

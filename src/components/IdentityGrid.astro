@@ -1,0 +1,95 @@
+---
+import { identity } from '../data/principles';
+---
+
+<div class="identity">
+  {
+    identity.map((layer, i) => (
+      <article class={`layer panel panel-hover accent-${layer.accent}`} data-reveal data-reveal-delay={i * 60}>
+        <div class="layer-top">
+          <span class="layer-index">{String(i + 1).padStart(2, '0')}</span>
+          <span class="layer-bar" aria-hidden="true" />
+        </div>
+        <h3 class="layer-title">{layer.title}</h3>
+        <p class="layer-body">{layer.body}</p>
+        <ul class="layer-tags">
+          {layer.tags.map((t) => (
+            <li class="tag">{t}</li>
+          ))}
+        </ul>
+      </article>
+    ))
+  }
+</div>
+
+<style>
+  .identity {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  }
+
+  /* The first card leads the section on wide screens. */
+  @media (min-width: 900px) {
+    .identity {
+      grid-template-columns: repeat(6, 1fr);
+    }
+    .layer { grid-column: span 2; }
+    .layer:nth-child(1) { grid-column: span 3; }
+    .layer:nth-child(2) { grid-column: span 3; }
+  }
+
+  .layer {
+    --c: var(--accent);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .accent-accent { --c: var(--accent); }
+  .accent-signal { --c: var(--signal); }
+  .accent-amber { --c: var(--amber); }
+  .accent-rose { --c: var(--rose); }
+
+  .layer-top {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .layer-index {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--c);
+  }
+
+  .layer-bar {
+    height: 2px;
+    flex: 1;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--c), transparent);
+    opacity: 0.4;
+  }
+
+  .layer-title {
+    font-size: var(--step-1);
+    letter-spacing: -0.018em;
+  }
+
+  .layer-body {
+    color: var(--text-muted);
+    font-size: var(--step--1);
+    margin-top: 0.55rem;
+    line-height: 1.6;
+    flex: 1;
+  }
+
+  .layer-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+    margin-top: 1.1rem;
+  }
+</style>

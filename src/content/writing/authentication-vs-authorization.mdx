@@ -1,0 +1,155 @@
+---
+title: "Authentication and authorization are different questions"
+description: "Why treating a valid session as permission produces a whole bug class, and where the ownership check actually belongs."
+summary: "Conflating authentication with authorization is not a terminology slip. It is the architectural decision that lets \"logged in\" quietly become \"permitted\", and you pay for it in the resource layer months later."
+date: 2025-08-03
+tags: ["Identity", "Architecture", "Security"]
+featured: false
+---
+
+A request arrives carrying a token. The signature verifies against the JWKS, the issuer and audience match, the expiry is in the future. The handler reads the ID from the path, loads the row, serializes it, returns 200. Every step of that is defensible in isolation, and the endpoint is still broken, because nothing in it ever asked whether this particular caller was allowed to see this particular row.
+
+That is the whole bug in one paragraph. It is easy to write and hard to see in review, because the code looks careful. There is a token check. There is an error path. What is missing is not a line of validation — it is a second question that nobody asked.
+
+## Two questions that only sound related
+
+Authentication answers: **who is this?** It runs against a credential — a password, a passkey, an assertion from an identity provider — and its output is a principal. A user ID, a tenant, maybe a set of claims. It is expensive, it involves a human or a key, and it happens once per session at a boundary. After that you carry the result around in a cookie or a bearer token so you do not have to do it again on every request.
+
+Authorization answers: **may this principal perform this action on this resource?** Three inputs, not one. Dropping any of them changes the question into something weaker. "May this principal read?" is not the same as "may this principal read report 42". The first is a property of the user. The second is a property of the relationship between the user and one specific object.
+
+<Callout type="key">
+Authentication produces a *fact* — this is user U. Authorization produces a *decision* — U may do A to R. A fact cached in a token stays true until it expires. A decision cached in a token stops being true the moment somebody changes a membership, and the token has no idea.
+</Callout>
+
+That difference in shape drives everything else. One runs once and can be cached. The other runs on every request and mostly cannot.
+
+| Aspect | Authentication | Authorization |
+| --- | --- | --- |
+| Question | Who is this caller? | May this principal do this action to this resource? |
+| When | Once per session, at a boundary | On every request that touches a resource |
+| Who decides | The identity provider, or your login endpoint | The service that owns the resource |
+| Inputs | A credential | Principal, action, resource |
+| Failure mode | 401 — impersonation, session fixation | 403, or worse: a 200 carrying somebody else's data |
+| Smell when wrong | Users cannot log in | Nobody notices for months |
+
+The last row is the one I care about. Authentication failures are loud: nobody can get in, the support queue fills up, you fix it that afternoon. Authorization failures are silent by construction. The system returns a well-formed response to a request that should have been refused, and both sides are satisfied.
+
+## Why the gateway cannot do this for you
+
+The appealing version of this architecture is: terminate authentication at the edge, let the gateway validate the token, and have downstream services trust the principal header. That part is fine. The next step — "and while it is in there, let the gateway do the access check too" — is where it falls apart.
+
+<Flow caption="Authentication ends at the boundary. Authorization starts where the data is." steps={[
+  { label: "Client", note: "untrusted input", accent: "muted" },
+  { label: "Gateway", note: "validates token, knows who", accent: "accent" },
+  { label: "Service", note: "knows what the resource is", accent: "signal" },
+  { label: "Data store", note: "tenant, owner, state", accent: "amber" }
+]} />
+
+A gateway sees a method, a path and a token. It can tell you that a valid principal is calling `GET /reports/42`. It cannot tell you that report 42 belongs to tenant B, because it does not have the row. To find out, it would have to query the reports service — at which point the reports service is the one doing the lookup anyway, and the gateway is a slow proxy for a check it cannot make.
+
+Gateways are good at coarse gates. Is there a token at all. Is it from an issuer we trust. Is this route even exposed to this client. Those are route-level facts, and pushing them to the edge keeps them out of every handler. But the moment the decision depends on the *state* of the resource — its owner, its tenant, its workflow status, whether it has been shared — the only component with enough information is the one that owns the storage.
+
+Middleware inside a single service has the same hole. A filter that runs before the controller knows the path parameter but not the row. The ownership check has to happen after the load, which means it happens in code that also knows what a report is.
+
+## The check that is actually missing
+
+Here is the contrast, written generically. The first handler verifies authentication and nothing else. The second treats the identity as an *input* to a decision rather than as the decision.
+
+```java title="ReportController.java"
+// Authenticated only. Answers "is there a valid principal?" and stops.
+public Result getReport(long reportId) {
+    Principal p = requireAuthenticated();        // 401 if the token is bad
+    Report report = reports.findById(reportId);
+    if (report == null) return notFound();
+    return ok(toJson(report));                   // any user, any report
+}
+
+// Authorized. Identity, action and resource all take part.
+public Result getReportChecked(long reportId) {
+    Principal p = requireAuthenticated();                 // 401
+    requireScope(p, "read:reports");                      // what the client may ask for
+    Report report = reports.findById(reportId);
+    if (report == null) return notFound();
+    if (!report.tenantId().equals(p.tenantId())) {
+        return notFound();   // deliberately not 403 — do not confirm it exists
+    }
+    if (!permissions.allows(p, "report:read", report.id())) {
+        return forbidden();  // what this user may do
+    }
+    return ok(toJson(report));
+}
+```
+
+Two details in there are worth arguing about. First, the cross-tenant case returns 404, not 403 — a 403 tells an attacker the ID is real, which is a free enumeration oracle. Second, the scope check and the permission check are both present and they are not redundant. More on that below.
+
+The structural fix is better than the per-handler fix: make the query itself tenant-scoped, so `findByIdForTenant(reportId, p.tenantId())` is the only way to load a report and the unsafe call does not exist. A check you can forget to write will eventually be forgotten. A check that lives in the data access layer cannot be.
+
+<Callout type="gotcha" title="200 OK for a resource you do not own">
+This bug class has no stack trace, no error rate, no latency spike. The response is well-formed and the status is 200. It surfaces when somebody sees a name they should not recognize, and by then it has been live for as long as the endpoint has. Any test written from the perspective of a single logged-in user will pass. The test that catches it is the boring one: log in as A, request a resource belonging to B, assert 404.
+</Callout>
+
+## Roles, permissions, attributes — and the trade you are actually making
+
+Three common models, each solving the previous one's problem and introducing its own.
+
+**Roles** attach a label to a user: admin, editor, viewer. Simple to read, simple to render in a UI, trivial to check. They get coarse quickly. Somebody needs to publish but not delete, so you add `publisher`. Somebody needs to publish in one region only, so you add `publisher_region_x`. The role count grows with the *product*, and each new role is a permanent migration.
+
+**Permissions** attach verbs to the user instead: `report:read`, `report:publish`, `display:reboot`. Roles become bundles of permissions, which is the useful version of roles. Checks stay precise. The cost is volume — hundreds of strings, more with every feature, and the hard part becomes administering them rather than checking them.
+
+**Attribute- or relationship-based** decisions stop enumerating and start computing: this user may edit because they belong to the group that owns the folder this document sits in. It handles hierarchy and sharing without a combinatorial explosion of role names. It is also the version where the decision needs data — a graph to traverse or a policy engine to call — and where "why was this denied" stops being a substring search.
+
+<Callout type="wrong">
+I used to think of this as a maturity ladder — that roles were the beginner version and you graduated upward. It is not a ladder, it is a curve. Roles are cheap to check and expensive to administer once they multiply. Relationship-based rules are cheap to administer and expensive to evaluate. You are choosing which cost you would rather carry, and for a lot of systems the honest answer is roles as bundles of permissions, plus an explicit ownership check at the resource.
+</Callout>
+
+## A scope is not a permission
+
+This is the distinction that took me longest to hold properly, because both end up as strings in the same token.
+
+A **scope** is what the *client application* was authorized to ask for. It is negotiated at the authorization endpoint, consented to by the user, and it bounds the delegation — it says this third-party app may request read access to reports on your behalf, and nothing else.
+
+A **permission** is what the *user* may do. It comes from your own model, not from the OAuth exchange.
+
+An access token carrying `scope=read:reports` means: the client is allowed to make report-read calls for this user. It says nothing at all about whether this user may read report 42. If your user is a viewer in tenant A and the report belongs to tenant B, the scope is still satisfied and the request must still be refused.
+
+<Flow caption="Both gates, in order. Passing the first does not imply the second." steps={[
+  { label: "scope=read:reports", note: "client may ask", accent: "accent" },
+  { label: "user permission", note: "this user may read", accent: "signal" },
+  { label: "resource ownership", note: "…this report", accent: "amber" }
+]} />
+
+The failure here is subtle because scope checks *look* like authorization. String comparisons against a token, returning 403, sitting in middleware. They are genuinely necessary. They are just answering a question about the client, and the question about the user is still open.
+
+## Claims in the token, or a lookup
+
+Once you have permissions, you have to decide where the request-time check reads them from.
+
+Put them in the token and the check is local: verify the signature, read the claim, decide. No network call, no dependency on an authorization service being up. The token is also a snapshot taken at issue time, and it stays that snapshot until it expires. Tokens grow, too — a permission list that seemed compact becomes a header large enough to matter at a few hundred entries.
+
+Do a lookup and the answer is current. It costs a call on the hot path, and it makes every service depend on whatever holds the permission data staying up.
+
+| Property | Claims in the token | Lookup at request time |
+| --- | --- | --- |
+| Freshness | As of issue time | Now |
+| Cost per request | None | A call, or a cache with its own staleness |
+| Failure blast radius | Contained | Authorization store becomes critical path |
+| Size | Grows with permission count | Constant |
+| Revocation | Waits for expiry | Immediate |
+
+The last row is where the abstract trade becomes concrete. Removing a user from a project is an authorization change, and if their permissions are baked into a token with a one-hour lifetime, they keep the access for up to an hour. That is either acceptable or unacceptable, and which one it is depends entirely on what the permission guards — a stale read on a dashboard is not the same as a stale ability to delete.
+
+The middle path most systems land on: keep identity claims in the token, keep fast-moving authorization state out of it, and make lifetimes short enough that the staleness window matches your worst case. Working on IAM flows is where that clicked for me — the refresh exchange is not just a UX convenience for long sessions, it is the recurring checkpoint at which decisions get re-made, and the place you get to say no.
+
+## The confused deputy
+
+One more failure mode that follows directly from conflating the two questions. A service that is trusted and holds broad privileges accepts a request from a less-privileged caller and performs the action using *its own* authority instead of the caller's. The classic shape is an internal service with database-wide access exposing an endpoint that takes a resource ID and does not check who is asking.
+
+The deputy is not compromised. It is doing exactly what it was asked, with permissions it legitimately has. It simply never checked whether the requester had them. Background jobs, admin tooling and service-to-service calls are where this hides, because those paths get built with "it is internal, it is fine" as the security model. Internal means the network is trusted. It does not mean the *request* is.
+
+The fix is the same shape as everything else here: carry the caller's principal through to the component that owns the resource, and decide there — not at the edge, not in the caller, not in a filter that only sees a path.
+
+## What this comes down to
+
+Authentication is a boundary. It runs once, produces a principal, and is done. Authorization is not a boundary at all — it repeats on every request, needs the resource in hand, and belongs in the service that owns the storage.
+
+Treating them as one thing does not fail immediately. It fails quietly, later, as a 200 that should have been a 404. Reading an endpoint now, the question I ask is not "is this authenticated" but "which line compares the caller to the resource" — and if I cannot point at that line, it is not there.

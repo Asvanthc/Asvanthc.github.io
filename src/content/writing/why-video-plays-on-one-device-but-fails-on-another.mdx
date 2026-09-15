@@ -1,0 +1,215 @@
+---
+title: "Why the same video plays on one device and fails on another"
+description: "A layered mental model for digital signage playback failures: container vs codec vs profile and level vs the hardware decoder that actually has to run it."
+summary: "\"The video is not playing\" is the most common report I see, and it almost never means one thing. This is the model I use to take it apart, from the container down to the silicon."
+date: 2025-09-21
+tags: ["Media", "Devices", "Debugging"]
+featured: true
+---
+
+A file plays perfectly on my laptop. It plays in the CMS preview in Chrome. It plays on one screen in the field. On another screen, same content, same schedule, the panel goes black for the duration of the item and then moves on to the next one. No error. No log line. Nothing to grep for.
+
+That is the shape of almost every playback bug I have worked on at Zeetaminds. Digital signage means pushing media to Samsung Tizen, LG webOS and Android devices that were bought at different times, from different vendors, with different chips inside them. "The video does not play" is a symptom with at least five distinct causes, and the fastest way to get slow is to treat it as one.
+
+So here is the model I actually use.
+
+## The question is not whether the file is valid
+
+This is the thing I got wrong for a long time.
+
+<Callout type="wrong">
+I assumed an MP4 was an MP4. If VLC opened it, if `ffprobe` reported no errors, if the CMS preview played it in a desktop browser, then the file was fine and any failure downstream had to be a bug in our player, the network, or the scheduler.
+</Callout>
+
+A media file being well formed tells you that a decoder *could* read it. It says nothing about whether *this* decoder, on *this* SoC, is willing to. Support is a property of the decoder, not of the file. A perfectly valid, perfectly standard file can be completely undecodable on a given chip, and the chip is not wrong — it just never claimed to handle that combination.
+
+Once you internalise that, the debugging question changes from "what is wrong with this file" to "which layer does this device refuse".
+
+## Four layers, and they fail independently
+
+<Flow caption="Every layer below has to say yes. Any one of them can say no on its own." steps={[
+  { label: "Container", note: "mp4, mkv, webm", accent: "muted" },
+  { label: "Codec", note: "H.264, HEVC, VP9, AV1", accent: "accent" },
+  { label: "Profile + level", note: "High, 4.2, bitrate cap", accent: "amber" },
+  { label: "Hardware decoder", note: "the actual chip", accent: "signal" },
+  { label: "Pixels on the panel", accent: "muted" }
+]} />
+
+### Container: the box, not the contents
+
+MP4, MKV, WebM, TS. A container is packaging. It defines how video frames, audio frames, timestamps, subtitle tracks and metadata are interleaved and indexed. It does not define how the pixels are compressed.
+
+This is why "convert it to MP4" is such a common and such an unreliable piece of advice. Remuxing an HEVC stream from MKV into MP4 changes the box and leaves the contents identical. If the device could not decode HEVC before, it still cannot.
+
+Containers do matter, though. Embedded players are frequently picky about which containers they will demux at all, and MKV support in particular is inconsistent on signage firmware. So the container can be the failure on its own — just not the failure people assume it is.
+
+### Codec: how the pixels are compressed
+
+H.264 (AVC) is the floor. Practically every device with a video decoder handles it. H.265 (HEVC) is common on newer hardware and absent or partial on older hardware. VP9 tends to track the browser engine. AV1 hardware decoding is still thin on signage-class silicon.
+
+The codec is the single biggest predictor of whether something plays at all. If you only get to check one thing, check this.
+
+### Profile and level: the part people skip
+
+Within a codec, a **profile** is a feature set. H.264 Baseline leaves out CABAC and B-frames. Main adds them. High adds 8x8 transforms and more. High 10 adds 10-bit depth. A decoder that advertises H.264 may only implement up to Main, and will simply not handle a High 10 stream.
+
+A **level** is a resource cap: maximum resolution, maximum frame rate at that resolution, maximum bitrate, maximum decoded picture buffer size. Level 4.0 tops out around 1080p30 at roughly 20 Mbps. Level 4.2 gets you 1080p60. 4K60 fits inside HEVC Level 5.0 on resolution and frame rate; it is usually the bitrate that pushes real files to Level 5.1 (Main tier caps at 25 Mbps for Level 5, 40 Mbps for Level 5.1).
+
+So a device can support the right container, the right codec, the right profile, and still refuse the file because the encoder pushed the bitrate above what the level permits. This is the failure that looks most like magic, because "it's H.264 in an MP4" is true and the file still does not play.
+
+### The hardware decoder: the layer that has the final say
+
+Everything above is a spec. The decoder block on the SoC is an implementation of a subset of that spec, shipped in firmware years ago, and it is the only opinion that counts at runtime. Vendor documentation describes what it claims to support. Reality is occasionally narrower, especially at the edges — unusual resolutions, high frame rates, long GOPs, 10-bit.
+
+## What each layer can break
+
+| Layer | Example value | What goes wrong | Usual symptom |
+| --- | --- | --- | --- |
+| Container | `.mkv` instead of `.mp4` | Device cannot demux the box at all | Immediate skip, or black for the item duration |
+| Video codec | HEVC on an older panel | No decoder path exists | Black video, audio may still play |
+| Audio codec | AC-3 or DTS track | Audio decode fails, playback aborts | Reported as "video not working" |
+| Profile | High 10 (10-bit) | Decoder only implements 8-bit | Black, or heavy corruption |
+| Level | 4K60 at 60 Mbps | Exceeds resolution/bitrate cap | Stalls, stutters, or silently fails |
+| Concurrency | Two videos in two zones | Only one hardware decoder session | Second zone stays black |
+| Delivery | File streamed, not cached | Cannot seek, buffer underruns | Freezes mid-item, resumes late |
+
+## The failure modes, in the order they waste your time
+
+### Silent failure is the default, and it is the worst one
+
+<Callout type="gotcha" title="No error event is the most common error">
+The intuition from web development is that a failed decode fires an `error` event on the media element with a `MEDIA_ERR_DECODE` code. On embedded players that is frequently not what happens. The element reports no error, `readyState` never climbs past `HAVE_METADATA`, `currentTime` stays at zero or advances with nothing rendered, and the output is black. From the player app's point of view nothing failed — it just never started. If your playback watchdog only listens for `error`, it will not fire.
+</Callout>
+
+The practical consequence is that you cannot rely on error events to drive fallback. You need a timeout: if the element has not advanced `currentTime` within a few seconds of being told to play, treat it as a failure and move on. It is a blunt instrument and it is the only thing that works consistently.
+
+```js title="watchdog.js"
+function playWithWatchdog(video, onFailure, graceMs = 5000) {
+  let last = -1;
+  const timer = setTimeout(() => {
+    if (video.currentTime === last || video.readyState < 3) {
+      onFailure(new Error('no progress'));
+    }
+  }, graceMs);
+
+  last = video.currentTime;
+  video.addEventListener('ended', () => clearTimeout(timer), { once: true });
+  video.addEventListener('error', () => {
+    clearTimeout(timer);
+    onFailure(video.error);
+  }, { once: true });
+
+  video.play().catch(onFailure);
+}
+```
+
+### The audio track is unsupported and it looks like a video problem
+
+A file with H.264 video and an AC-3 or DTS audio track will fail on plenty of devices that handle the video fine. The decoder pipeline rejects the audio, playback never starts, and the person filing the report writes "the video does not play" because from the panel that is exactly what it looks like.
+
+AAC-LC is the safe answer. Whenever a file fails and the video parameters look unremarkable, check the audio track before anything else. It costs one command and it resolves a surprising share of reports.
+
+### Above the level the decoder supports
+
+A 4K60 source at a high bitrate will fail on a 1080p-class decoder even when the panel is 4K, because panel resolution and decoder capability are separate things. Bitrate alone can do it too: a 1080p file that a badly configured encoder emitted at 80 Mbps can exceed the level cap while looking perfectly ordinary in a file listing.
+
+### Too many concurrent decodes
+
+Signage layouts split the screen into zones. Two video zones means two simultaneous decode sessions, and hardware decoders have a finite number. Many signage SoCs give you exactly one. The first video plays, the second is black, and the file in the second zone is blamed — even though it plays fine when it is the only thing on screen.
+
+The tell is that swapping the two items swaps which one fails.
+
+### Progressive download versus a file you cannot seek
+
+Playing from a URL rather than from local storage introduces failure modes that have nothing to do with codecs. If the server does not honour HTTP range requests, the player cannot seek, so a loop that restarts by setting `currentTime = 0` will hang. If the file is not fragmented and the `moov` atom sits at the end, the player has to go looking for it before it can start — a range-capable player pays an extra round trip to fetch the tail, and a player or server without range support has to pull the whole file first.
+
+```bash
+ffmpeg -i input.mp4 -c copy -movflags +faststart output.mp4
+```
+
+Moving the index to the front is a one-line remux and it removes an entire class of "takes forever to start" reports.
+
+## What you can check from JavaScript, and how much to trust it
+
+Two APIs are available in the player app, and both are advisory.
+
+```js title="support.js"
+const v = document.createElement('video');
+
+// Bare MIME type: almost useless, tells you about the container only.
+v.canPlayType('video/mp4');                                  // "maybe"
+
+// Full codecs string: H.264 High profile, Level 4.0 + AAC-LC.
+v.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"'); // "probably"
+
+// HEVC Main profile, Level 5.1.
+v.canPlayType('video/mp4; codecs="hev1.1.6.L153.B0"');       // often ""
+
+// MSE asks a different question and answers boolean.
+MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"'); // true
+```
+
+Three things to know about these:
+
+1. **Without a full `codecs` parameter the answer is meaningless.** `video/mp4` alone returns `"maybe"` on essentially everything, because the container says nothing about the contents. The codec string is where the information lives: `avc1.640028` is H.264 High Profile at Level 4.0, `avc1.42E01E` is Baseline at Level 3.0.
+2. **`canPlayType` returns `"probably"`, `"maybe"` or the empty string.** Not booleans. `"probably"` is a hint, not a contract, and an empty string is a stronger signal than `"probably"` is — a device that says it cannot is usually telling the truth; a device that says it probably can is sometimes repeating what the browser engine believes rather than what the decoder will do.
+3. **On embedded devices these APIs routinely disagree with the hardware.** The web engine and the media pipeline are separate components, and the engine's codec table was not necessarily regenerated when the firmware shipped. I have seen `"probably"` for streams that produce black output, and I have seen playback succeed where `isTypeSupported` returned `false`.
+
+Use them to reject early. Never use them as proof that something will work.
+
+## A debugging order that converges
+
+When a report comes in, this is the sequence, and skipping steps is what makes it take a day instead of twenty minutes.
+
+**1. Does it fail elsewhere?** Same file, different device model, and in a desktop browser. If it fails everywhere, the file is broken and the device is innocent. If it fails on exactly one model, you have narrowed it to that decoder.
+
+**2. Inspect the file properly.** Not the extension, not the file size — the actual streams.
+
+```bash
+ffprobe -v error -show_entries \
+  stream=index,codec_type,codec_name,profile,level,width,height,r_frame_rate,bit_rate \
+  -of default=noprint_wrappers=1 input.mp4
+```
+
+```text
+index=0
+codec_type=video
+codec_name=hevc
+profile=Main 10
+level=153
+width=3840
+height=2160
+r_frame_rate=60/1
+bit_rate=41983216
+index=1
+codec_type=audio
+codec_name=ac3
+profile=unknown
+level=-1
+```
+
+Read that and the mystery evaporates. HEVC Main 10 means 10-bit. Level 153 is HEVC Level 5.1 (the field is level times 30). 3840x2160 at 60 fps, roughly 42 Mbps. And the audio is AC-3. There are four independent reasons that file might not play on a mid-range signage device, and you would not have guessed any of them from `promo-final.mp4`.
+
+**3. Compare against the device's documented support.** Every signage platform publishes a codec matrix. It is the first place to check whether HEVC Main 10 at Level 5.1 was ever on the table for that model year.
+
+**4. Transcode to a known-good baseline and retest.** H.264 High profile, Level 4.0, 1080p30, AAC-LC stereo, faststart. If that plays, you have confirmed the device is fine and the source was outside its envelope. If it still fails, the problem is not the encoding and you go looking at storage, the network, or the player.
+
+```bash
+ffmpeg -i input.mp4 \
+  -c:v libx264 -profile:v high -level 4.0 -pix_fmt yuv420p \
+  -vf "scale=1920:-2,fps=30" -b:v 8M -maxrate 10M -bufsize 16M \
+  -c:a aac -b:a 128k -ac 2 \
+  -movflags +faststart output.mp4
+```
+
+## The conclusion is not a fix, it is a policy
+
+<Callout type="key">
+At platform level you stop asking "is this file valid" and start defining a supported encoding profile, then normalising everything to it. Validation is an endless argument with individual files. Normalisation ends the argument.
+</Callout>
+
+A supported profile is a short, boring document: container, codec, profile, level ceiling, resolution and frame rate ceilings, bitrate ceiling, audio codec and channel count, faststart required. Once it exists, two things become possible that were not possible before. Uploads can be checked against it and flagged at ingest rather than discovered as a black screen three time zones away. And anything outside it can be transcoded down to it automatically, so the device only ever receives content it was always going to be able to decode.
+
+That does not remove hardware quirks. Concurrent decode limits still exist, older firmware still surprises you, and there is always one model that does something nobody documented. But it collapses the search space. When a normalised file fails, the encoding is no longer a suspect, and you are debugging a device instead of debugging a file.
+
+The alternative is answering "why does this one not play" one file at a time, forever.

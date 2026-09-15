@@ -1,0 +1,208 @@
+---
+import { roles } from '../data/experience';
+---
+
+<div class="exp">
+  {
+    roles.map((role) => (
+      <article class="role" data-reveal>
+        <header class="role-head">
+          <div class="role-id">
+            <span class="role-dot" aria-hidden="true" />
+            <div>
+              <h3 class="role-title">
+                {role.title} <span class="at">at</span> {role.company}
+              </h3>
+              <p class="role-meta">
+                <time datetime={role.start}>{role.period}</time>
+                <span class="sep" aria-hidden="true">·</span>
+                {role.location}
+              </p>
+            </div>
+          </div>
+          <span class="role-badge">Current</span>
+        </header>
+
+        <p class="role-summary">{role.summary}</p>
+
+        <div class="areas">
+          {role.areas.map((area, i) => (
+            <section class="area" data-reveal data-reveal-delay={i * 50}>
+              <h4 class="area-title">
+                <span class="area-n">{String(i + 1).padStart(2, '0')}</span>
+                {area.title}
+              </h4>
+              <ul class="area-points">
+                {area.points.map((p) => (
+                  <li>{p}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+
+        <footer class="role-stack">
+          <span class="stack-label">Worked with</span>
+          <ul class="stack-tags">
+            {role.stack.map((s) => (
+              <li class="tag">{s}</li>
+            ))}
+          </ul>
+        </footer>
+      </article>
+    ))
+  }
+</div>
+
+<style>
+  .role {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .role-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.35rem clamp(1.1rem, 3vw, 1.75rem);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+  }
+
+  .role-id {
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-start;
+  }
+
+  .role-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--signal);
+    flex: none;
+    margin-top: 0.45rem;
+    box-shadow: 0 0 0 3px var(--signal-wash);
+  }
+
+  .role-title {
+    font-size: var(--step-2);
+    letter-spacing: -0.022em;
+  }
+
+  .at {
+    color: var(--text-faint);
+    font-weight: 400;
+  }
+
+  .role-meta {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+  }
+
+  .sep { margin-inline: 0.5rem; color: var(--text-faint); }
+
+  .role-badge {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--signal) 35%, transparent);
+    background: var(--signal-wash);
+    color: var(--signal);
+    white-space: nowrap;
+    flex: none;
+  }
+
+  .role-summary {
+    padding: 1.35rem clamp(1.1rem, 3vw, 1.75rem) 0;
+    color: var(--text-muted);
+    font-size: var(--step-0);
+    max-width: 74ch;
+    text-wrap: pretty;
+  }
+
+  .areas {
+    display: grid;
+    gap: 1.5rem 2.5rem;
+    padding: 1.6rem clamp(1.1rem, 3vw, 1.75rem);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  }
+
+  .area-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: var(--step-0);
+    letter-spacing: -0.012em;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .area-n {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--accent);
+    flex: none;
+  }
+
+  .area-points {
+    list-style: none;
+    margin-top: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .area-points li {
+    position: relative;
+    padding-left: 1rem;
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .area-points li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 4px;
+    height: 1px;
+    background: var(--text-faint);
+  }
+
+  .role-stack {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.9rem;
+    padding: 1.1rem clamp(1.1rem, 3vw, 1.75rem);
+    border-top: 1px solid var(--border);
+    background: var(--bg-subtle);
+  }
+
+  .stack-label {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .stack-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+  }
+
+  @media (max-width: 560px) {
+    .role-head { flex-direction: column; }
+  }
+</style>

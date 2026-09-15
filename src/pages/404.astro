@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+---
+
+<BaseLayout title="404 — Page not found" description="That page does not exist." noindex>
+  <section class="nf">
+    <div class="grid-bg"></div>
+    <div class="wrap nf-inner">
+      <p class="nf-code">404</p>
+      <h1 class="nf-title">No route matched.</h1>
+      <p class="nf-body">
+        This page does not exist. If you followed a link from the old version of this site, the
+        original pages are still around — they are just filed under
+        <a class="link" href="/archive/">the archive</a> now.
+      </p>
+      <div class="nf-actions">
+        <a class="btn btn-primary" href="/">Back home <Icon name="arrow" /></a>
+        <a class="btn btn-secondary" href="/writing">Engineering notes</a>
+        <a class="btn btn-ghost" href="/archive/">Archive</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .nf {
+    position: relative;
+    overflow: hidden;
+    min-height: 62vh;
+    display: flex;
+    align-items: center;
+  }
+
+  .nf-inner {
+    position: relative;
+    z-index: 1;
+    padding-block: clamp(3rem, 8vw, 5rem);
+  }
+
+  .nf-code {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+
+  .nf-title {
+    font-size: var(--step-4);
+    letter-spacing: -0.03em;
+    margin-top: 0.6rem;
+  }
+
+  .nf-body {
+    margin-top: 1.1rem;
+    color: var(--text-muted);
+    font-size: var(--step-1);
+    max-width: 54ch;
+    text-wrap: pretty;
+  }
+
+  .nf-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 2rem;
+  }
+</style>

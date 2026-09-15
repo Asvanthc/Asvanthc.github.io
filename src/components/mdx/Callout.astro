@@ -1,0 +1,87 @@
+---
+interface Props {
+  /**
+   * note      — neutral aside
+   * gotcha    — something that bit me
+   * wrong     — what I originally believed, before I understood it
+   * key       — the load-bearing idea of the section
+   */
+  type?: 'note' | 'gotcha' | 'wrong' | 'key';
+  title?: string;
+}
+const { type = 'note', title } = Astro.props;
+
+const defaults = {
+  note: 'Note',
+  gotcha: 'Where this bites',
+  wrong: 'What I got wrong',
+  key: 'The key idea',
+} as const;
+
+const heading = title ?? defaults[type];
+---
+
+<aside class={`callout callout-${type}`}>
+  <p class="callout-title">
+    <span class="callout-icon" aria-hidden="true">
+      {type === 'note' && 'i'}
+      {type === 'gotcha' && '!'}
+      {type === 'wrong' && '×'}
+      {type === 'key' && '★'}
+    </span>
+    {heading}
+  </p>
+  <div class="callout-body"><slot /></div>
+</aside>
+
+<style>
+  .callout {
+    --c: var(--accent);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--c);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--surface);
+    padding: 1rem 1.15rem;
+    margin-block: 1.6em !important;
+  }
+
+  .callout-note { --c: var(--accent); }
+  .callout-gotcha { --c: var(--amber); }
+  .callout-wrong { --c: var(--rose); }
+  .callout-key { --c: var(--signal); }
+
+  .callout-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--c);
+    margin: 0 0 0.5rem;
+    letter-spacing: 0.01em;
+  }
+
+  .callout-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--c) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    flex: none;
+    line-height: 1;
+  }
+
+  .callout-body :global(> *) {
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .callout-body :global(> * + *) { margin-top: 0.7em; }
+  .callout-body :global(p:first-child) { margin-top: 0; }
+</style>

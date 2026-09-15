@@ -1,0 +1,260 @@
+---
+import ThemeToggle from './ThemeToggle.astro';
+import { nav, site } from '../data/site';
+const path = Astro.url.pathname;
+---
+
+<header class="nav" data-nav>
+  <div class="nav-inner wrap">
+    <a class="brand" href="/" aria-label={`${site.name} — home`}>
+      <span class="brand-mark" aria-hidden="true">
+        <span class="px"></span><span class="px"></span><span class="px"></span><span class="px"></span>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">Asvanth C</span>
+        <span class="brand-role">Software Engineer</span>
+      </span>
+    </a>
+
+    <nav class="nav-links" aria-label="Primary">
+      {
+        nav.map((item) => (
+          <a
+            href={item.href}
+            class="nav-link"
+            aria-current={item.href === '/writing' && path.startsWith('/writing') ? 'page' : undefined}
+          >
+            {item.label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <div class="nav-actions">
+      <a class="btn btn-ghost nav-resume" href={site.resume} download>Resume</a>
+      <ThemeToggle />
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-btn>
+        <span class="visually-hidden">Menu</span>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M2 5h14M2 9h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="mobile-menu" id="mobile-menu" hidden data-mobile-menu>
+    <nav class="wrap mobile-menu-inner" aria-label="Mobile">
+      {nav.map((item) => <a href={item.href} class="mobile-link">{item.label}</a>)}
+      <a href={site.resume} class="mobile-link mobile-link-accent" download>Download résumé</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(150%) blur(16px);
+    -webkit-backdrop-filter: saturate(150%) blur(16px);
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+
+  /* Once content is scrolling underneath, legibility beats translucency. */
+  .nav[data-scrolled] {
+    border-bottom-color: var(--border);
+    background: color-mix(in srgb, var(--bg) 97%, transparent);
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .nav {
+      background: var(--bg);
+    }
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    height: 62px;
+  }
+
+  /* --- Brand: a 2x2 pixel block, a nod to the displays --- */
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-right: auto;
+    min-width: 0;
+  }
+
+  .brand-mark {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+    width: 18px;
+    height: 18px;
+    flex: none;
+  }
+
+  .px {
+    background: var(--accent);
+    border-radius: 1.5px;
+    transition: background var(--dur) var(--ease), opacity var(--dur) var(--ease);
+  }
+
+  .px:nth-child(2) { opacity: 0.55; }
+  .px:nth-child(3) { opacity: 0.35; }
+  .px:nth-child(4) { background: var(--signal); }
+
+  .brand:hover .px:nth-child(2),
+  .brand:hover .px:nth-child(3) { opacity: 1; }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    min-width: 0;
+  }
+
+  .brand-name {
+    font-weight: 600;
+    font-size: var(--step--1);
+    letter-spacing: -0.012em;
+  }
+
+  .brand-role {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--text-faint);
+    letter-spacing: 0.02em;
+  }
+
+  /* --- Links --- */
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  .nav-link {
+    padding: 0.4rem 0.7rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+
+  .nav-link:hover,
+  .nav-link[aria-current='page'] {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .nav-resume {
+    padding: 0.4rem 0.8rem;
+  }
+
+  .menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+
+  .menu-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  /* --- Mobile --- */
+  .mobile-menu {
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    animation: menu-in 180ms var(--ease);
+  }
+
+  @keyframes menu-in {
+    from { opacity: 0; translate: 0 -6px; }
+    to { opacity: 1; translate: 0 0; }
+  }
+
+  .mobile-menu-inner {
+    display: flex;
+    flex-direction: column;
+    padding-block: 0.5rem 1rem;
+  }
+
+  .mobile-link {
+    padding: 0.8rem 0.25rem;
+    font-size: var(--step-0);
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mobile-link:last-child { border-bottom: 0; }
+  .mobile-link:hover { color: var(--text); }
+  .mobile-link-accent { color: var(--accent); font-weight: 560; }
+
+  @media (max-width: 860px) {
+    .nav-links,
+    .nav-resume { display: none; }
+    .menu-btn { display: inline-flex; }
+  }
+
+  @media (min-width: 861px) {
+    .mobile-menu { display: none !important; }
+  }
+</style>
+
+<script>
+  const header = document.querySelector<HTMLElement>('[data-nav]');
+  const btn = document.querySelector<HTMLButtonElement>('[data-menu-btn]');
+  const menu = document.querySelector<HTMLElement>('[data-mobile-menu]');
+
+  // Border appears only once the page has scrolled off the top.
+  if (header) {
+    const onScroll = () => {
+      if (window.scrollY > 4) header.setAttribute('data-scrolled', '');
+      else header.removeAttribute('data-scrolled');
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  if (btn && menu) {
+    const setOpen = (open: boolean) => {
+      menu.hidden = !open;
+      btn.setAttribute('aria-expanded', String(open));
+    };
+    btn.addEventListener('click', () => setOpen(menu.hidden !== false));
+    menu.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).tagName === 'A') setOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !menu.hidden) {
+        setOpen(false);
+        btn.focus();
+      }
+    });
+    // Reset state if the viewport grows past the mobile breakpoint.
+    window.matchMedia('(min-width: 861px)').addEventListener('change', (e) => {
+      if (e.matches) setOpen(false);
+    });
+  }
+</script>

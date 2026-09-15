@@ -1,0 +1,193 @@
+---
+/**
+ * Layered architecture diagram.
+ *
+ * Renders as a responsive column of layers connected by flow markers. Each layer
+ * can hold several sibling nodes (e.g. three device platforms side by side).
+ * Hovering or focusing a node reveals its note — the diagram carries the same
+ * information with or without a pointer.
+ */
+
+export type Node = {
+  label: string;
+  sub?: string;
+  note?: string;
+  accent?: 'accent' | 'signal' | 'amber' | 'rose' | 'muted';
+};
+
+export type Layer = {
+  title: string;
+  nodes: Node[];
+  /** Label rendered on the connector below this layer. */
+  edge?: string;
+};
+
+interface Props {
+  title: string;
+  caption?: string;
+  layers: Layer[];
+  id: string;
+}
+
+const { title, caption, layers, id } = Astro.props;
+---
+
+<figure class="arch" aria-labelledby={`${id}-title`}>
+  <figcaption class="arch-head">
+    <h3 class="arch-title" id={`${id}-title`}>{title}</h3>
+    {caption && <p class="arch-caption">{caption}</p>}
+  </figcaption>
+
+  <div class="arch-body">
+    {
+      layers.map((layer, li) => (
+        <>
+          <div class="layer">
+            <span class="layer-title">{layer.title}</span>
+            <div class="layer-nodes" data-count={layer.nodes.length}>
+              {layer.nodes.map((node) => (
+                <div class={`node node-${node.accent ?? 'accent'}`} tabindex={node.note ? 0 : undefined}>
+                  <span class="node-label">{node.label}</span>
+                  {node.sub && <span class="node-sub">{node.sub}</span>}
+                  {node.note && <span class="node-note">{node.note}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+          {li < layers.length - 1 && (
+            <div class="edge" aria-hidden="true">
+              <span class="edge-line" />
+              {layer.edge && <span class="edge-label">{layer.edge}</span>}
+              <span class="edge-line" />
+            </div>
+          )}
+        </>
+      ))
+    }
+  </div>
+</figure>
+
+<style>
+  .arch {
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .arch-head {
+    padding: 1.15rem clamp(1rem, 3vw, 1.5rem);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+  }
+
+  .arch-title {
+    font-size: var(--step-1);
+  }
+
+  .arch-caption {
+    color: var(--text-muted);
+    font-size: var(--step--1);
+    margin-top: 0.35rem;
+    max-width: 58ch;
+  }
+
+  .arch-body {
+    padding: clamp(1.1rem, 3vw, 1.75rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .layer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .layer-title {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .layer-nodes {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  }
+
+  .node {
+    --node-accent: var(--accent);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--node-accent);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    padding: 0.7rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  }
+
+  .node:hover,
+  .node:focus-visible {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    border-left-color: var(--node-accent);
+  }
+
+  .node-accent { --node-accent: var(--accent); }
+  .node-signal { --node-accent: var(--signal); }
+  .node-amber { --node-accent: var(--amber); }
+  .node-rose { --node-accent: var(--rose); }
+  .node-muted { --node-accent: var(--text-faint); }
+
+  .node-label {
+    font-size: var(--step--1);
+    font-weight: 560;
+    letter-spacing: -0.008em;
+  }
+
+  .node-sub {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--node-accent);
+  }
+
+  .node-note {
+    font-size: var(--step--2);
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-top: 0.3rem;
+  }
+
+  /* --- Connector between layers --- */
+  .edge {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-block: 0.7rem;
+    padding-left: 0.9rem;
+  }
+
+  .edge-line {
+    height: 1px;
+    background: linear-gradient(90deg, var(--border-strong), transparent);
+    flex: 1;
+  }
+
+  .edge-line:first-child {
+    flex: 0 0 22px;
+    background: var(--border-strong);
+  }
+
+  .edge-label {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+</style>

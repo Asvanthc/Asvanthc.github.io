@@ -1,0 +1,16 @@
+---
+/**
+ * Overrides the `table` element in MDX so wide tables scroll inside their own
+ * box instead of pushing the page sideways. No horizontal scroll, anywhere.
+ */
+---
+
+{/*
+  tabindex makes the overflow box keyboard-scrollable. Deliberately NOT a
+  role="region" landmark: an article has several of these and they would all
+  land in the landmark list with the same generic name, which is worse than
+  having no landmark at all.
+*/}
+<div class="table-wrap" tabindex="0">
+  <table><slot /></table>
+</div>

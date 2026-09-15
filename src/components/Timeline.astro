@@ -1,0 +1,111 @@
+---
+import { timeline } from '../data/experience';
+---
+
+<ol class="timeline">
+  {
+    timeline.map((t, i) => (
+      <li class={`t-item kind-${t.kind}`} data-reveal data-reveal-delay={i * 60}>
+        <div class="t-rail" aria-hidden="true">
+          <span class="t-node" />
+        </div>
+        <div class="t-body">
+          <span class="t-when">{t.when}</span>
+          <h3 class="t-title">{t.title}</h3>
+          <span class="t-org">{t.org}</span>
+          <p class="t-text">{t.body}</p>
+        </div>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .timeline {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .t-item {
+    --c: var(--accent);
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    gap: 1.1rem;
+  }
+
+  .kind-education { --c: var(--text-faint); }
+  .kind-work { --c: var(--accent); }
+  .kind-future { --c: var(--signal); }
+
+  .t-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  .t-rail::before {
+    content: '';
+    position: absolute;
+    top: 0.5rem;
+    bottom: -0.5rem;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .t-item:last-child .t-rail::before {
+    background: linear-gradient(180deg, var(--border), transparent);
+  }
+
+  .t-node {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    border: 2px solid var(--c);
+    background: var(--bg);
+    margin-top: 0.45rem;
+    position: relative;
+    z-index: 1;
+    rotate: 45deg;
+  }
+
+  .kind-future .t-node {
+    border-style: dashed;
+    rotate: 0deg;
+    border-radius: 50%;
+  }
+
+  .t-body {
+    padding-bottom: 2.1rem;
+    min-width: 0;
+  }
+
+  .t-when {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--c);
+    letter-spacing: 0.04em;
+  }
+
+  .t-title {
+    font-size: var(--step-1);
+    letter-spacing: -0.018em;
+    margin-top: 0.25rem;
+  }
+
+  .t-org {
+    display: block;
+    font-size: var(--step--1);
+    color: var(--text-faint);
+    margin-top: 0.15rem;
+  }
+
+  .t-text {
+    color: var(--text-muted);
+    font-size: var(--step--1);
+    line-height: 1.65;
+    margin-top: 0.6rem;
+    max-width: 62ch;
+  }
+</style>

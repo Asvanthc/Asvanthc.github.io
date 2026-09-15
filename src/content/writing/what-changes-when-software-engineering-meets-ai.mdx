@@ -1,0 +1,160 @@
+---
+title: "What changes when software engineering meets AI"
+description: "A backend engineer's notes on what an LLM really changes in a system: a non-deterministic component with no contract, and the ordinary discipline around it."
+summary: "I am learning AI engineering from a backend seat, not teaching it from an expert one. These are the things I think genuinely change when a model lands in your call graph, and the much longer list of things that stubbornly do not."
+date: 2026-05-24
+tags: ["AI Engineering", "Architecture", "LLM"]
+featured: true
+---
+
+The first time I wired up a tool-calling loop, I assumed the model was calling my function. It is not. It emits a structured request that says "I would like `getInvoice` with this argument", and then my code decides whether that ever becomes a method call. Nothing happens unless I make it happen. That one correction reframed the whole subject for me, because it turned an intimidating AI problem back into a familiar backend problem: an untrusted party is asking my system to do something, and I have to decide if it may.
+
+I should be clear about where I am standing. My day job is a digital signage platform at Zeetaminds — Java, Play, Guice, MyBatis, SQL, REST, an Angular client, and player apps on Tizen, webOS and Android. I have worked on identity: OAuth 2.0 and OIDC, authorization code with PKCE, JWT verification against a JWKS. AI engineering is something I am learning, not something I ship in production. So read this as the notes of a backend engineer reading the map, not as a report from the territory. The reason I think it is still worth writing is that most of what I have had to learn was not AI at all. It was the ordinary discipline, applied to a component that behaves worse than the ones I am used to.
+
+<Callout type="key">
+A model is one component in a system that still has to be correct. It is a new kind of dependency, not a new kind of engineering. Everything around it — validation, authorization, timeouts, idempotency, defined failure behaviour — is the same engineering you already do, and it matters more here, not less.
+</Callout>
+
+## What actually changes: a component with no stable contract
+
+Every dependency I had worked with before has a contract. A REST endpoint has a documented shape. A SQL query returns columns I declared. A method signature is checked by the compiler. When any of them changes, something breaks loudly and early.
+
+A model has none of that. You send text, you get text back. The shape of that text is a strong suggestion you made in a prompt, not a guarantee the runtime enforces. Ask for JSON and you will usually get JSON, and occasionally get JSON wrapped in a sentence apologising for the JSON. Send the exact same input twice and you can get two different outputs — and lowering temperature narrows the spread without making it a promise. Upgrade the model version and every assumption you quietly built on its old phrasing is now untested.
+
+That has two practical consequences I did not expect.
+
+The first is that equality assertions stop working as a testing strategy. `assertEquals(expected, actual)` is the backbone of how I test a service, and against a model it is nearly useless. You end up asserting properties instead of values: it parsed, it validated against the schema, it contains the order ID, it did not call a tool it had no business calling, it refused when the input was garbage.
+
+The second is that "works on my machine" gets a worse variant: works on my prompt, in my session, with the one example I tried. No compiler tells you the contract moved.
+
+| Concern | A normal service dependency | A model |
+| --- | --- | --- |
+| Contract | Typed, versioned, enforced | Requested in prose, not enforced |
+| Same input twice | Same output | Possibly different output |
+| Testing | Equality assertions | Property and behaviour assertions over a set |
+| Typical failure | Error code, timeout, exception | Confident, well-formed, wrong |
+| Version upgrade | Breaks compilation or tests | Silently shifts behaviour |
+| Trust level | As trusted as you made it | Untrusted input, always |
+
+The last row is the one that carries the most weight. Model output is input to your system, arriving from outside it, shaped by text a user may control. That is a category I already know how to handle.
+
+## What does not change at all
+
+Here is the part that reassured me. Put a model in the middle of a request path and the list of things you owe that request is exactly what it was before.
+
+You still need a timeout, because calls are slow and variable and something will hang. You still need retries with backoff and a cap, and you still have to decide which failures are retryable — a malformed response is worth one more attempt, a rejected input is not. You still need idempotency, and it gets sharper here: if a tool call charges a card or deletes a schedule, a retried loop must not do it twice, which means idempotency keys, not hope. You still need input validation before the model ever sees the text. You still need authorization on every single tool the model can reach. And you still need a defined behaviour for failure — a real answer to "the model is unavailable or returns nonsense, what does the user see?" — because "the feature just does not work today" is not a design.
+
+<Callout type="wrong" title="What I originally believed">
+I assumed the hard part would be prompting, and that the surrounding code was plumbing. It is the reverse. Prompting is the part that gives you a working demo in an afternoon. The plumbing — validation, authorization, retry semantics, failure behaviour, evaluation — is the part that decides whether the thing can be trusted by anyone other than you.
+</Callout>
+
+<Flow
+  caption="One request through an AI-backed endpoint. Every box outside the model is ordinary engineering."
+  steps={[
+    { label: "Request", note: "authn, authz, input validation", accent: "accent" },
+    { label: "Retrieval", note: "your index, your filters", accent: "signal" },
+    { label: "Model", note: "non-deterministic, no contract", accent: "amber" },
+    { label: "Tool request", note: "a proposal, not permission", accent: "rose" },
+    { label: "Your code", note: "validate, authorize, execute", accent: "accent" },
+    { label: "Response", note: "schema-checked before it ships", accent: "muted" }
+  ]}
+/>
+
+## Tool calling: the model proposes, your code disposes
+
+Tool calling is where this clicked, so it is worth being precise about the mechanics. You describe some functions to the model — name, description, a schema for the arguments. Instead of answering in prose, the model can respond with a structured request naming one of them and supplying arguments. Your application reads that request, executes if it agrees, and feeds the result back so the model can continue. The loop runs until the model stops asking or you cut it off.
+
+The model never executes anything. It cannot reach your database. It produced some tokens that happen to be shaped like a function call, and the entire question of whether that becomes an effect in the world is a question about your code.
+
+### "The model asked for it" is not authorization
+
+Once you see it that way, every tool is a public API endpoint. It needs an argument schema and rejection on violation. It needs an authorization check against the principal of the session — the human or service on whose behalf the request is running — and never against the model's confidence. It needs its own audit trail, because "why did this record change?" deserves an answer better than a transcript.
+
+The failure mode is easy to picture. A user asks about account 91, the model helpfully emits `getInvoices` with account 92, and if the only check is that 92 is a valid integer, you have built a data leak with extra steps. Prompt injection is the same bug with a hostile author: text pulled in from a document tells the model to call the delete tool, the model obliges, and the only thing between that suggestion and a real deletion is whether you wrote the authorization check.
+
+```java title="ToolLoop.java (illustrative)"
+// The model proposes. This code decides.
+for (int turn = 0; turn < MAX_TURNS; turn++) {
+    ModelResponse res = client.complete(messages, TOOL_SPECS);
+    if (res.toolCalls().isEmpty()) return res.text();
+    messages.add(res.asAssistantMessage());   // 0. the request stays in the history
+
+    for (ToolCall call : res.toolCalls()) {
+        Tool tool = registry.find(call.name());
+        if (tool == null) {                       // 1. a tool we actually expose
+            messages.add(toolError(call, "unknown_tool"));
+            continue;
+        }
+        Validation v = tool.schema().validate(call.arguments());
+        if (!v.ok()) {                            // 2. shape and types
+            messages.add(toolError(call, v.message()));
+            continue;
+        }
+        if (!authz.permits(session.principal(), tool.permission(), v.value())) {
+            messages.add(toolError(call, "forbidden"));   // 3. the caller's rights
+            continue;
+        }
+        messages.add(toolResult(call, tool.execute(session, v.value())));  // 4. only now
+    }
+}
+throw new ToolLoopExhausted();   // 5. bounded, with a defined failure
+```
+
+Errors go back into the conversation rather than up the stack. A rejected call is information the model can use to correct itself, and a loop that surfaces "forbidden" beats one that dies. The turn cap matters too: an unbounded agent loop is an unbounded bill.
+
+## Structured output is a boundary, and boundaries get validated
+
+Structured output — asking for JSON that conforms to a schema — is what makes a model usable as a component instead of a chat window. Constrained decoding on the provider side has made it much more reliable than it used to be, and reliable is still not guaranteed.
+
+So apply the rule you already apply to any external payload: parse, validate, then use. Never deserialise straight into a domain object and carry on.
+
+```js title="boundary.js"
+let payload;
+try { payload = JSON.parse(raw); }
+catch (e) { return retryOnce(raw, e); }              // not JSON at all
+
+const parsed = schema.safeParse(payload);            // shape and types
+if (!parsed.success) return retryOnce(raw, parsed.error);
+
+const { displayId, startsAt, endsAt } = parsed.data;
+if (endsAt <= startsAt) return reject("invalid_window");   // domain rules
+if (!userCanSchedule(session, displayId)) return reject("forbidden");
+```
+
+Schema validation gets you well-formed. It does not get you correct. A perfectly valid object can still reference an ID that does not exist or a time window that makes no sense, and those checks are yours to write.
+
+## RAG is retrieval with a prompt stapled to the end
+
+Retrieval-augmented generation sounds like an architecture. Mechanically it is: take the user's question, find some relevant text, paste that text into the prompt, ask the question again. That is it. The generation half is a few lines.
+
+Almost all the difficulty lives in the retrieval half, which is a search problem, and search was hard before any of this. Chunking alone will eat a week: split too small and a clause loses the context that gave it meaning, split too large and you dilute the embedding until it matches everything weakly. Then, do you rank by vector similarity alone, or combine it with keyword search, which is still better at exact identifiers and product names? Does retrieval respect the same access control as the rest of the system, so nobody can pull a passage out of a document they could never open directly? That last one is not an AI question at all.
+
+<Callout type="gotcha">
+A bad retriever with a good model does not produce obvious failures. It produces fluent, confident, wrong answers, because the model faithfully summarises the irrelevant passages you handed it. The better the model, the more convincing the wrong answer sounds. When a RAG system is bad, look at what was retrieved before you touch the prompt.
+</Callout>
+
+## Evaluation is the real discipline gap
+
+This is the part I underestimated hardest, and the gap that separates a demo from a system.
+
+Without a set of examples with expected properties, every prompt change is a vibe. You tweak wording, you try three inputs you happen to remember, the output reads nicer, you ship. What you actually did is unknown, because you changed a component with no contract and tested it by reading. You will fix one case, break four you never looked at, and feel like you are improving things the entire time.
+
+The remedy is unglamorous and entirely familiar: build a set of inputs with known-good properties, run it on every change, and look at the diff. Fifty cases collected from real failures beat a clever scoring framework over cases you invented. Assert properties rather than exact strings — valid schema, correct tool chosen, required field present, refusal when refusal is right. Keep every production failure as a permanent case, exactly like a regression test.
+
+It is a test suite. That is the whole point. The discipline is not new; only the assertions are.
+
+## Hallucination is a property to design around
+
+I used to think of hallucination as a bug that better models would eventually remove. I now think of it as a property of the component, like floating point imprecision or network partitions: something you build around rather than wait out.
+
+A model that generates plausible continuations will, when it lacks the fact, generate a plausible-looking fact. So the design responses are structural. Ground it — put the real data in the context rather than relying on what the weights remember. Constrain it — a model choosing from a supplied list fails less badly than one asked to recall. Verify it — if the output names an ID, look the ID up before showing it. Make it cite, and check the citation actually supports the claim rather than merely existing. And give the system a way to say it does not know, which usually means the retrieval step returning nothing and the application short-circuiting rather than asking the model to be honest about an empty context.
+
+None of that eliminates the property. It bounds the blast radius, which is what you do with every other failure mode you cannot remove.
+
+## Using AI as a coding tool without outsourcing correctness
+
+Separate from building with models, there is using them to write code, and I do that daily. It has genuinely changed how fast I move: unfamiliar API surfaces, boilerplate, test scaffolding, a first read of code I did not write. Pretending otherwise would be dishonest.
+
+It has changed nothing about what correct means. Code I accepted is code I wrote, as far as the review and the person on call are concerned. "The assistant generated it" is not an explanation, in precisely the way "the model asked for it" is not authorization. Same failure, same fix: a human-owned check at the boundary. So I read every line I accept, and if I cannot explain why it works I do not keep it. The ones that catch me out are plausible — code that compiles, reads well, and quietly mishandles a null or a timezone or an empty list. Fluent and wrong is the characteristic failure of this component too.
+
+Which is where I keep landing. The model is one component. The system around it still has to be correct, and making systems correct is the job I already had.

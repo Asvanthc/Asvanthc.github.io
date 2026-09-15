@@ -1,0 +1,90 @@
+---
+---
+
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
+  <svg class="icon icon-sun" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <circle cx="8" cy="8" r="3.1" stroke="currentColor" stroke-width="1.5"></circle>
+    <path
+      d="M8 1v1.6M8 13.4V15M15 8h-1.6M2.6 8H1M12.95 3.05l-1.13 1.13M4.18 11.82l-1.13 1.13M12.95 12.95l-1.13-1.13M4.18 4.18L3.05 3.05"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"></path>
+  </svg>
+  <svg class="icon icon-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M13.8 9.6A5.9 5.9 0 0 1 6.4 2.2a6 6 0 1 0 7.4 7.4Z"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linejoin="round"></path>
+  </svg>
+</button>
+
+<style>
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    position: relative;
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+      background var(--dur) var(--ease);
+  }
+
+  .theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+  }
+
+  .icon {
+    position: absolute;
+    transition: opacity 200ms var(--ease), rotate 320ms var(--ease), scale 320ms var(--ease);
+  }
+
+  /* Dark theme is active → offer the sun (switch to light). */
+  :global(:root[data-theme='dark']) .icon-moon { opacity: 0; rotate: -60deg; scale: 0.6; }
+  :global(:root[data-theme='dark']) .icon-sun { opacity: 1; rotate: 0deg; scale: 1; }
+  :global(:root[data-theme='light']) .icon-sun { opacity: 0; rotate: 60deg; scale: 0.6; }
+  :global(:root[data-theme='light']) .icon-moon { opacity: 1; rotate: 0deg; scale: 1; }
+</style>
+
+<script>
+  const root = document.documentElement;
+
+  const label = () =>
+    root.dataset.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+
+  document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((btn) => {
+    btn.setAttribute('aria-label', label());
+    btn.addEventListener('click', () => {
+      const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      root.dataset.theme = next;
+      try {
+        localStorage.setItem('theme', next);
+      } catch {
+        /* Preference simply will not persist — the toggle still works this session. */
+      }
+      document
+        .querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')
+        .forEach((b) => b.setAttribute('aria-label', label()));
+    });
+  });
+
+  // Follow the OS only while the user has not made an explicit choice.
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem('theme');
+    } catch {
+      /* ignore */
+    }
+    if (stored === 'light' || stored === 'dark') return;
+    root.dataset.theme = e.matches ? 'light' : 'dark';
+  });
+</script>

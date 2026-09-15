@@ -1,0 +1,423 @@
+---
+import Icon from './Icon.astro';
+import { site } from '../data/site';
+
+const stack = [
+  'Java',
+  'Play Framework',
+  'MyBatis',
+  'OAuth 2.0',
+  'OpenID Connect',
+  'JWT',
+  'Angular',
+  'TypeScript',
+  'Tizen',
+  'webOS',
+  'Android',
+  'SQL',
+];
+
+/** A compact restatement of the engineering identity, for the hero panel. */
+const layers = [
+  { key: 'web', value: 'Angular · TypeScript', accent: 'amber', state: 'production' },
+  { key: 'api', value: 'Java · Play · MyBatis', accent: 'accent', state: 'production' },
+  { key: 'identity', value: 'OAuth 2.0 · OIDC · JWT', accent: 'signal', state: 'production' },
+  { key: 'devices', value: 'Tizen · webOS · Android', accent: 'rose', state: 'production' },
+  { key: 'ai', value: 'LLM APIs · tools · RAG', accent: 'accent', state: 'learning' },
+];
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="grid-bg"></div>
+
+  <div class="wrap hero-inner">
+    <div class="hero-text">
+    <p class="status" data-reveal>
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>Software Engineer at <strong>Zeetaminds</strong> — since August 2024</span>
+    </p>
+
+    <h1 class="hero-title" id="hero-title" data-reveal data-reveal-delay="60">
+      I build the parts of software that people never see.
+    </h1>
+
+    <p class="hero-lede" data-reveal data-reveal-delay="120">
+      Backend services, the identity layer that guards them, and player software running on
+      displays in places I will never visit. I care about what a system actually does in
+      production — not what the spec says it should.
+    </p>
+
+    <div class="hero-actions" data-reveal data-reveal-delay="180">
+      <a class="btn btn-primary" href="#experience">
+        View experience <Icon name="arrow" />
+      </a>
+      <a class="btn btn-secondary" href="#engineering">Case studies</a>
+      <a class="btn btn-ghost" href="/writing">Engineering notes</a>
+    </div>
+
+    <div class="hero-meta" data-reveal data-reveal-delay="240">
+      <a class="meta-link" href="https://github.com/asvanthc" rel="me noopener" target="_blank">
+        <Icon name="github" /> GitHub
+      </a>
+      <a class="meta-link" href="https://www.linkedin.com/in/asvanth/" rel="me noopener" target="_blank">
+        <Icon name="linkedin" /> LinkedIn
+      </a>
+      <a class="meta-link" href={site.resume} download>
+        <Icon name="download" /> Résumé
+      </a>
+      <a class="meta-link" href={`mailto:${site.email}`}>
+        <Icon name="mail" /> {site.email}
+      </a>
+    </div>
+    </div>
+
+    <!-- The same story as the copy, in the shape an engineer reads faster. -->
+    <aside class="panel-stack" data-reveal data-reveal-delay="140" aria-label="What I work across">
+      <div class="ps-bar">
+        <span class="ps-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="ps-path">~/asvanth/stack</span>
+      </div>
+      <ul class="ps-rows">
+        {
+          layers.map((l) => (
+            <li class={`ps-row accent-${l.accent}`}>
+              <span class="ps-key">{l.key}</span>
+              <span class="ps-value">{l.value}</span>
+              <span class={`ps-state is-${l.state}`}>{l.state}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <div class="ps-foot">
+        <span class="ps-foot-dot" aria-hidden="true"></span>
+        <span>Five layers. Mostly the same problem, seen from different heights.</span>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Stack marquee: the actual tools, not a skills chart -->
+  <div class="stack-strip" data-reveal data-reveal-delay="300" aria-label="Technologies I work with">
+    <div class="stack-track">
+      {
+        [0, 1].map((dup) => (
+          <ul class="stack-list" aria-hidden={dup === 1 ? 'true' : undefined}>
+            {stack.map((s) => (
+              <li class="stack-item">{s}</li>
+            ))}
+          </ul>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    padding-block: clamp(3.5rem, 9vw, 7rem) 0;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: center;
+  }
+
+  /*
+   * The panel only earns its space when there is genuinely space to spare —
+   * below this the headline needs the full measure and the panel is hidden
+   * rather than squeezed.
+   */
+  @media (min-width: 1160px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.82fr);
+      gap: 2.75rem;
+    }
+  }
+
+  @media (max-width: 1159px) {
+    .panel-stack { display: none; }
+  }
+
+  /* --- Stack panel --- */
+  .panel-stack {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+    margin-bottom: clamp(2.5rem, 6vw, 4rem);
+  }
+
+  .ps-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+  }
+
+  .ps-dots {
+    display: flex;
+    gap: 5px;
+  }
+
+  .ps-dots i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-strong);
+  }
+
+  .ps-path {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+  }
+
+  .ps-rows {
+    list-style: none;
+    padding: 0.35rem 0;
+    margin: 0;
+  }
+
+  .ps-row {
+    --c: var(--accent);
+    display: grid;
+    grid-template-columns: 4.4rem minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.5rem 0.9rem;
+    border-left: 2px solid transparent;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+
+  .ps-row:hover {
+    background: var(--surface-2);
+    border-left-color: var(--c);
+  }
+
+  .accent-accent { --c: var(--accent); }
+  .accent-signal { --c: var(--signal); }
+  .accent-amber { --c: var(--amber); }
+  .accent-rose { --c: var(--rose); }
+
+  .ps-key {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--c);
+  }
+
+  /* Wrap rather than truncate — a clipped stack list says nothing. */
+  .ps-value {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    overflow-wrap: break-word;
+  }
+
+  .ps-state {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+
+  .is-production {
+    color: var(--signal);
+    border-color: color-mix(in srgb, var(--signal) 32%, transparent);
+    background: var(--signal-wash);
+  }
+
+  .is-learning {
+    border-style: dashed;
+  }
+
+  .ps-foot {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.7rem 0.95rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-subtle);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    line-height: 1.45;
+  }
+
+  .ps-foot-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 1px;
+    background: var(--accent);
+    flex: none;
+  }
+
+  /* --- Availability / status line --- */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem 0.35rem 0.7rem;
+    margin-bottom: 1.6rem;
+  }
+
+  .status strong {
+    color: var(--text);
+    font-weight: 560;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--signal);
+    flex: none;
+    position: relative;
+  }
+
+  .status-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1px solid var(--signal);
+    opacity: 0.5;
+    animation: pulse 2.6s var(--ease) infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.45; scale: 1; }
+    50% { opacity: 0; scale: 1.5; }
+  }
+
+  /* --- Title --- */
+  .hero-title {
+    font-size: var(--step-5);
+    letter-spacing: -0.034em;
+    font-weight: 660;
+    max-width: 17ch;
+  }
+
+  .hero-lede {
+    margin-top: 1.4rem;
+    font-size: var(--step-1);
+    color: var(--text-muted);
+    max-width: 56ch;
+    text-wrap: pretty;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 2.1rem;
+  }
+
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.4rem;
+    margin-top: 2.2rem;
+    padding-bottom: clamp(2.5rem, 6vw, 4rem);
+  }
+
+  .meta-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: var(--step--1);
+    color: var(--text-faint);
+    transition: color var(--dur) var(--ease);
+  }
+
+  .meta-link:hover {
+    color: var(--accent);
+  }
+
+  @media (max-width: 560px) {
+    .hero-title { max-width: none; }
+  }
+
+  /* --- Stack strip --- */
+  .stack-strip {
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid var(--border);
+    background: var(--bg-subtle);
+    overflow: hidden;
+    padding-block: 0.85rem;
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+
+  .stack-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 48s linear infinite;
+  }
+
+  .stack-strip:hover .stack-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee {
+    from { translate: 0 0; }
+    to { translate: -50% 0; }
+  }
+
+  .stack-list {
+    display: flex;
+    align-items: center;
+    gap: 2.2rem;
+    padding-inline: 1.1rem;
+    margin: 0;
+    list-style: none;
+  }
+
+  .stack-item {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .stack-item::after {
+    content: '';
+    position: absolute;
+    right: -1.15rem;
+    top: 50%;
+    translate: 0 -50%;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--border-strong);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stack-track {
+      animation: none;
+      /* Without motion the duplicate list is dead weight — hide it and allow scroll. */
+      width: auto;
+      overflow-x: auto;
+    }
+    .stack-list[aria-hidden='true'] { display: none; }
+  }
+</style>

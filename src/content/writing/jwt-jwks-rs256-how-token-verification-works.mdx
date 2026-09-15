@@ -1,0 +1,221 @@
+---
+title: "JWT, JWKS and RS256 — how token verification actually works"
+description: "A JWT is signed, not encrypted, and verifying one means checking the signature and the claims — here is how RS256, kid, JWKS and alg confusion fit together."
+summary: "Anyone holding a JWT can read it. The hard part is not decoding the token, it is deciding — carefully, and in the right order — whether to trust it."
+date: 2025-06-22
+tags: ["JWT", "Security", "Identity"]
+featured: true
+---
+
+Take any JWT you have lying around, split it on the dots, base64url-decode the middle part. You will see every claim in it. No key. No password. No handshake. Just a decoder that ships with every language runtime and about four lines of code.
+
+That is not a bug. That is the design. But it is the single most common misunderstanding I ran into when I started working on identity at Zeetaminds, and it is the one that leads people to put things in a token that should never leave a database.
+
+## Signed is not encrypted
+
+A signature answers two questions: did this token come from the issuer it claims to come from, and has a single byte of it changed since. It answers nothing at all about who can read it.
+
+<Callout type="wrong" title="What I originally believed">
+I assumed a JWT was a sealed envelope — that the token was some encoded, key-protected blob, and that the server "unlocked" it on each request. It is the opposite. A standard signed JWT (a JWS) is a *transparent* envelope with a tamper-evident seal. Anyone who holds it reads it. The seal only tells you whether someone rewrote what is inside.
+</Callout>
+
+The rule that follows is simple and worth being rigid about: **never put anything in a JWT that you would not put in a log line.** A user id, a tenant id, a role, an expiry — fine. An email address is already a judgement call. A phone number, an address, an internal customer reference, an API secret, anything you would have to report if it leaked — no. Tokens end up in browser storage, in proxy access logs, in crash reports, in screenshots pasted into chat. Treat them as public strings with a signature attached.
+
+There *is* a way to encrypt a token — JWE, described in RFC 7516 — and it is a genuinely different construction with different headers. If you are not explicitly using JWE, you are not encrypting anything. Almost nobody is.
+
+## The three segments, and what is actually signed
+
+A JWT is three base64url segments joined by dots:
+
+```text
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjIwMjUtMDQtYSJ9   <- header
+.
+eyJpc3MiOiJodHRwczovL2lkcC5leGFtcGxlLmNvbSIs...  <- payload (claims)
+.
+QdJ2xM7f0m1N...                                  <- signature
+```
+
+Decode the first two and you get plain JSON:
+
+```json title="decoded header and payload"
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "2025-04-a"
+}
+{
+  "iss": "https://idp.example.com",
+  "sub": "user-8317",
+  "aud": "cms-api",
+  "exp": 1750600800,
+  "iat": 1750597200,
+  "nbf": 1750597200,
+  "scope": "displays:read schedules:write"
+}
+```
+
+The detail that made the whole thing click for me: the signature is not computed over the JSON. It is computed over the **ASCII of the first two segments, exactly as they appear in the token, joined by a dot**. That is the signing input:
+
+```text
+signing_input = base64url(header_json) + "." + base64url(payload_json)
+signature     = sign(signing_input, key)
+```
+
+This is why you must never re-serialise a token before verifying it. If you parse the payload into an object and rebuild the string, your key ordering or whitespace will differ from the issuer's and the signature will fail — or worse, you verify one byte sequence and then act on a different one. Verify the raw segments you received. Parse afterwards.
+
+It also explains why JWTs are URL-safe and why they are chunky. Base64url of JSON is not compact, and every claim you add is paid on every single request that carries the token.
+
+## HS256 and RS256 are an architecture decision, not a config value
+
+The `alg` value looks like a tuning knob. It is not. It decides who in your system is capable of *minting* tokens.
+
+| Property | HS256 | RS256 |
+|---|---|---|
+| Family | HMAC with SHA-256 | RSA signature (PKCS#1 v1.5) with SHA-256 |
+| Keys | One shared secret | Private key signs, public key verifies |
+| Who can verify | Anyone holding the secret | Anyone holding the public key |
+| Who can mint | **Anyone holding the secret** | Only the holder of the private key |
+| Key distribution | Out of band, secret, per verifier | Public, over HTTPS, cacheable |
+| Fits | One service that issues and consumes its own tokens | An IdP plus many independent verifiers |
+
+With HS256, verification and signing use the same secret. So every service that can check a token can also forge one. Add a fifth service that needs to validate tokens and you have just handed out a fifth copy of a token-minting capability — to a service that may be less hardened than your identity provider, and that may be operated by a different team.
+
+With RS256 the private key never leaves the IdP. Verifiers hold only the public key, and a public key is exactly what it says: publishable. You can serve it over plain HTTPS, cache it at the edge, hand it to a partner, commit it to a config repository if you like. The worst an attacker does with a public key is verify tokens, which they could do anyway.
+
+That asymmetry is the whole reason OpenID Connect providers default to RS256. Once you have more than one verifier — and any real platform does, with an API, a job runner, maybe a device-facing endpoint — symmetric signing stops being a reasonable default.
+
+<Callout type="key">
+Choose the algorithm by asking "who needs to be able to *create* a valid token?" — not "which one is faster?". HMAC is faster, and it is still the wrong answer for a multi-verifier system.
+</Callout>
+
+## kid and JWKS: how a verifier finds the right public key
+
+If the IdP has one public key forever, you can hardcode it. Nobody has one key forever, because keys have to be rotated, and rotation cannot mean a flag day where every token in flight becomes invalid at once.
+
+So the header carries `kid` — a key id. It is an opaque string. Do not parse meaning out of it; it is a lookup handle, nothing else. The verifier reads `kid` from the header and looks up the matching public key in the issuer's **JWKS** (JSON Web Key Set), served at a well-known URL that the IdP's discovery document points to, conventionally `/.well-known/jwks.json`:
+
+```json title="jwks.json (abridged)"
+{
+  "keys": [
+    { "kty": "RSA", "use": "sig", "alg": "RS256", "kid": "2025-04-a",
+      "n": "0vx7agoebGcQSuu...", "e": "AQAB" },
+    { "kty": "RSA", "use": "sig", "alg": "RS256", "kid": "2025-06-b",
+      "n": "sXchDaQebHnPiGv...", "e": "AQAB" }
+  ]
+}
+```
+
+Two keys are listed because a rotation is in progress. That is normal and should be the steady state during a changeover.
+
+### Rotation is an overlap, not a switch
+
+A correct rotation goes in this order. Publish the new key in the JWKS *first*, while still signing with the old one. Wait long enough for every verifier's cache to have picked it up. Then start signing with the new key. Keep the old key published until every token signed with it has expired. Only then remove it.
+
+Get the order wrong — sign with a key before publishing it — and every verifier starts rejecting valid tokens at once, which looks exactly like an outage and gets debugged as one.
+
+### Cache the key set, refetch on unknown kid, rate-limit the refetch
+
+Fetching the JWKS on every request is not an option; you would put a network call in the hot path of every authenticated request and make your IdP a hard dependency for all traffic. Fetching it once at boot is not an option either, because then rotation breaks you.
+
+The working pattern is: cache the key set in memory; on a `kid` you do not recognise, refetch once and retry the lookup; **and rate-limit that refetch**.
+
+<Flow caption="Key lookup on an incoming token" steps={[
+  { label: "Token", note: "untrusted", accent: "rose" },
+  { label: "Read kid", note: "header only", accent: "muted" },
+  { label: "JWKS cache", note: "hit: verify", accent: "accent" },
+  { label: "Refetch", note: "rate-limited", accent: "amber" },
+  { label: "Verify signature", accent: "signal" }
+]} />
+
+That rate limit matters more than it looks. Without it, the `kid` header is an unauthenticated, attacker-controlled cache-miss trigger. Anyone can send a stream of garbage tokens with random `kid` values, and every one of them turns into an outbound HTTPS request from your service to your identity provider. You have built a request amplifier pointed at the one component whose failure logs everybody out. Cap the refetch to something like once per interval per issuer, and treat "unknown kid, refetch already attempted recently" as a plain rejection.
+
+## Verification is the signature plus the claims
+
+This is the part I most underestimated. A valid signature means the token is authentic. It does not mean the token is *for you*, or that it is *still* good.
+
+<Flow caption="Checks that must all pass" steps={[
+  { label: "alg allowed", note: "your list", accent: "amber" },
+  { label: "Signature", note: "raw segments", accent: "accent" },
+  { label: "iss", note: "exact match", accent: "signal" },
+  { label: "aud", note: "you", accent: "signal" },
+  { label: "exp / nbf", note: "with skew", accent: "muted" }
+]} />
+
+### aud is the claim people skip
+
+`aud` names the intended recipient. `iss` names who minted it. Both have to be checked by exact string comparison against values you configured — never against values read out of the token itself.
+
+Picture one IdP issuing tokens for several APIs. A token minted for a low-privilege service is cryptographically perfect: real issuer, real signature, unexpired. If your high-privilege API checks only the signature, that token works there too. You have effectively merged the trust boundaries of every service that shares an issuer, and any one of them that leaks a token leaks access to all of them.
+
+A token that verifies cryptographically but carries the wrong `aud` is **invalid for you**. Reject it with the same finality as a bad signature.
+
+### exp, nbf, iat and clock skew
+
+`exp` is the expiry; past it, the token is dead. `nbf` ("not before") means the token is not yet usable. `iat` is when it was issued — useful when you enforce a maximum token age of your own, or when you invalidate every token issued before a password change or a forced logout.
+
+All three are seconds since the Unix epoch, not milliseconds, and they are compared against the verifier's clock. Machine clocks drift, so allow a small tolerance — a minute or two, no more. A large skew allowance is just a longer expiry with extra steps. And if your servers are not running NTP, fix that rather than widening the window.
+
+## The attacks that come from trusting the token's own header
+
+Both classic JWT breaks share one root cause: the library asked the *token* which algorithm to use.
+
+### alg=none
+
+RFC 7519 includes an unsecured mode where `alg` is `none` and the signature segment is empty. It exists for cases where integrity is guaranteed by some other layer. Several early libraries implemented it as a first-class option in their generic `verify()` path. An attacker rewrites the payload to `"role": "admin"`, sets the header algorithm to `none`, strips the signature, and the verifier dutifully performs the no-op check and returns success.
+
+### RS256 to HS256 confusion
+
+This one is more elegant and, to me, more instructive. Your IdP signs with RS256; your verifier holds the RSA public key. The attacker takes that public key — which is public, so they have it — flips the header to `HS256`, and computes an HMAC over their forged signing input using the **PEM text of the public key as the shared secret**.
+
+A naive verifier reads `alg: HS256` from the header, fetches "the key" for that issuer, and passes it to an HMAC function. Same bytes, different primitive. The HMAC matches. The forged token verifies.
+
+<Callout type="gotcha">
+The fix is one sentence: **the verifier decides which algorithms are acceptable, and the token never gets a vote.** Configure an explicit allow-list — usually a single entry, `RS256` — and reject anything else before you look at a key. A token header may only be used to *select among keys you already trust*, never to select the verification procedure.
+</Callout>
+
+## What correct verification looks like
+
+Illustrative, not lifted from anything — but this is the shape:
+
+```java title="TokenVerifier.java (illustrative)"
+private static final Set<String> ALLOWED_ALGS = Set.of("RS256");
+private static final String EXPECTED_ISS = "https://idp.example.com";
+private static final String EXPECTED_AUD = "cms-api";
+private static final Duration SKEW = Duration.ofSeconds(60);
+
+public Claims verify(String rawToken) {
+    Header header = parseHeaderOnly(rawToken);          // untrusted so far
+    if (!ALLOWED_ALGS.contains(header.alg())) {
+        throw new InvalidTokenException("algorithm not accepted");
+    }
+    PublicKey key = keys.lookup(header.kid());          // cached JWKS, rate-limited refetch
+    if (!Rs256.verify(signingInput(rawToken), signature(rawToken), key)) {
+        throw new InvalidTokenException("bad signature");
+    }
+    Claims c = parseClaims(rawToken);                   // only now is parsing safe
+    Instant now = clock.instant();
+    if (!EXPECTED_ISS.equals(c.iss()))  throw new InvalidTokenException("issuer");
+    if (!c.audience().contains(EXPECTED_AUD)) throw new InvalidTokenException("audience");
+    if (now.isAfter(c.exp().plus(SKEW)))  throw new InvalidTokenException("expired");
+    if (c.nbf() != null && now.isBefore(c.nbf().minus(SKEW))) {
+        throw new InvalidTokenException("not yet valid");
+    }
+    return c;
+}
+```
+
+Three things about that shape are deliberate. The algorithm check happens before any key is touched. The claims are parsed only after the signature passes, so nothing in the payload influences control flow while it is still unverified. And every expected value — issuer, audience, allowed algorithms — comes from configuration, not from the token.
+
+In practice you should not hand-roll any of this. Use a maintained library, and then check that the library is being *called* correctly, because most of these failures are call-site failures rather than library bugs: a `decode()` used where `verify()` was meant, an audience parameter left out, an algorithm list left as "whatever the token says". The dangerous API is usually the convenient one.
+
+## The short version
+
+If you remember five things:
+
+- The payload is readable by anyone. Signing gives you integrity and origin, never secrecy.
+- The signature covers the raw base64url segments. Verify what arrived; parse it after.
+- HS256 lets every verifier mint tokens. RS256 does not. That is an architecture choice.
+- `kid` plus a cached JWKS makes rotation survivable — with a rate limit on the refetch.
+- Signature valid is not the same as token valid. Check `iss`, `aud`, `exp` and `nbf` every time, against values you configured.
+
+None of this is exotic cryptography. The failures I have read about and the ones I have had to reason through are almost all in the plumbing: a check that was skipped, a value that was trusted because it arrived inside something that looked official. A JWT is a string that says who you are. Verification is the process of deciding whether to believe it — and that decision belongs to the verifier, not to the string.

@@ -1,0 +1,172 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+
+/**
+ * The previous version of this site, kept reachable rather than deleted.
+ * These are student-era projects from 2020–2023 and are presented as such —
+ * they are not part of the current portfolio.
+ */
+const archived = [
+  {
+    title: 'Carbee',
+    year: '2021',
+    href: '/casestudy_car/home.html',
+    body: 'A multi-page car marketplace built as a university case study: listings, booking, an EMI calculator and a login screen. Bootstrap-era HTML, CSS and jQuery.',
+  },
+  {
+    title: 'SPEAI',
+    year: '2022',
+    href: '/demo/index.html',
+    body: 'A brochure site for an import/export business, with category pages for food, fashion, technology and travel.',
+  },
+  {
+    title: 'Smart Attendance',
+    year: '2023',
+    href: '/smartAtt/index.html',
+    body: 'A PHP attendance-tracking prototype with a login flow.',
+  },
+  {
+    title: 'MSD',
+    year: '2021',
+    href: '/MSD/dhoni.html',
+    body: 'A single-page tribute site. An early experiment with CSS animation.',
+  },
+  {
+    title: 'Certificates',
+    year: '2019–2022',
+    href: '/cert/index.html',
+    body: 'The original certificate wall, with PDF previews. The current site links these individually instead.',
+  },
+  {
+    title: 'Old profile page',
+    year: '2021',
+    href: '/asv_c/profile.html',
+    body: 'The previous personal page, kept so that old links keep resolving.',
+  },
+];
+---
+
+<BaseLayout
+  title="Archive"
+  description="Older projects from the previous version of this site, kept online so existing links keep working."
+  noindex
+>
+  <section class="head">
+    <div class="grid-bg"></div>
+    <div class="wrap head-inner">
+      <a class="back" href="/"><span aria-hidden="true">←</span> Home</a>
+      <p class="eyebrow">Archive</p>
+      <h1 class="head-title">The previous version of this site.</h1>
+      <p class="head-lede">
+        Everything below is from 2020–2023, before I started working as an engineer. I have
+        kept it online because deleting it would break links that already exist, not because
+        it represents what I build now. For that, see
+        <a class="link" href="/#engineering">selected work</a>.
+      </p>
+    </div>
+  </section>
+
+  <div class="wrap list">
+    {
+      archived.map((item) => (
+        <a class="row panel panel-hover" href={item.href}>
+          <div class="row-main">
+            <h2 class="row-title">{item.title}</h2>
+            <p class="row-body">{item.body}</p>
+          </div>
+          <div class="row-side">
+            <span class="row-year">{item.year}</span>
+            <Icon name="external" size={14} />
+          </div>
+        </a>
+      ))
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .head {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .head-inner {
+    position: relative;
+    z-index: 1;
+    padding-block: clamp(2.5rem, 7vw, 4rem);
+  }
+
+  /* Block-level so the eyebrow below it starts on its own line. */
+  .back {
+    display: flex;
+    width: fit-content;
+    gap: 0.45rem;
+    font-size: var(--step--1);
+    color: var(--text-faint);
+    margin-bottom: 1.5rem;
+  }
+
+  .back:hover { color: var(--accent); }
+
+  .head-title {
+    font-size: var(--step-3);
+    letter-spacing: -0.028em;
+  }
+
+  .head-lede {
+    margin-top: 1rem;
+    color: var(--text-muted);
+    max-width: 60ch;
+    text-wrap: pretty;
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-block: clamp(2rem, 5vw, 3rem) clamp(3.5rem, 8vw, 6rem);
+  }
+
+  .row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.15rem 1.3rem;
+  }
+
+  .row-title {
+    font-size: var(--step-1);
+    letter-spacing: -0.018em;
+  }
+
+  .row-body {
+    margin-top: 0.4rem;
+    color: var(--text-muted);
+    font-size: var(--step--1);
+    max-width: 68ch;
+    line-height: 1.6;
+  }
+
+  .row-side {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--text-faint);
+    flex: none;
+  }
+
+  .row-year {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+  }
+
+  .row:hover .row-title { color: var(--accent); }
+  .row:hover .row-side { color: var(--accent); }
+
+  @media (max-width: 560px) {
+    .row { flex-direction: column-reverse; align-items: flex-start; gap: 0.5rem; }
+  }
+</style>

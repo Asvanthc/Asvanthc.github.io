@@ -1,0 +1,202 @@
+---
+title: "Understanding the OAuth 2.0 Authorization Code flow from first principles"
+description: "The Authorization Code flow is not a list of steps to memorise. It falls out of one constraint: the only lever an authorization server has is a redirect."
+summary: "For a long time I read the Authorization Code flow as a sequence diagram to memorise. It is easier than that. Almost every part of it is forced by a single constraint on what an authorization server is physically able to do."
+date: 2025-02-16
+tags: ["OAuth 2.0", "Identity", "Web"]
+featured: true
+---
+
+The first time I had to work on a login flow rather than read about one, I had the sequence diagram memorised and understood none of it. I could recite the steps. I could not answer simple questions about them. Why does the code go through the browser but the token does not? Why does the app send `redirect_uri` again at the token endpoint when it already sent it once? Why is `state` not just an optional nicety?
+
+The diagram answers none of that, because the diagram is the output, not the reasoning. The reasoning starts somewhere much smaller.
+
+## The one constraint
+
+An authorization server is a web server. That sounds obvious, and it is the whole thing.
+
+It has no open socket to your application. It cannot call your app. It cannot reach into the user's browser and move it somewhere. It does not know your app exists until someone shows up holding a `client_id`. Its entire power is this: when a browser sends it a request, it gets to write one response.
+
+So the question that generates the flow is narrow. Given only the ability to answer a request the browser already made, how do you get a secret from the authorization server into an application on a different domain, without the browser being able to read that secret? Every decision downstream — the redirect, the code, the second round trip, the short lifetime — is an answer to it.
+
+<Callout type="wrong">
+I used to picture the authorization server as an active participant: it "sends the user back to the app", it "redirects the browser", it "hands over a token". That mental model is upside down. The authorization server is passive. It answers, and then it is done. Everything that happens next happens because the browser decided to keep going.
+</Callout>
+
+## A 302 is an answer, not a push
+
+A `302 Found` is a status line and a `Location` header. That is all it is. There is no push, no socket, no instruction that must be obeyed. The server is saying "what you asked for is over there instead", and then the connection closes.
+
+```http
+HTTP/1.1 302 Found
+Location: https://auth.example.com/authorize?response_type=code&client_id=console-web
+Cache-Control: no-store
+Content-Length: 0
+```
+
+### The browser decides
+
+The navigation that follows is a *second, separate request*, made by the browser of its own accord, because following redirects is what user agents are built to do. Point a client that does not follow redirects at the same URL and the flow simply stops — an empty body and nothing else. I have done that with curl more than once and sat there wondering where the login page went.
+
+This is the detail that reframed the whole protocol for me. "Redirect" is not a verb the server performs on the browser. It is a reply, and the browser chooses to comply.
+
+<Callout type="key">
+The authorization server never moves anything. It answers a request with an address. The browser is the only party in the system that can actually travel between two domains, and it is the only party that does.
+</Callout>
+
+### Why the URL bar changing domain is the security property
+
+Because the browser performs the navigation itself, the address bar updates. Users see `auth.example.com`, with the certificate for that host. They type their password into a page served by the identity provider, on its origin, under its cookies.
+
+That is not cosmetic. It is the point. The application never sees the password and never needs to be trusted with credentials, and same-origin policy does the rest: the app's JavaScript cannot read anything on the authorization server's page, and vice versa. Embed the login form, frame it, or post the credentials on the user's behalf and all of that collapses. The redirect exists so the user is unambiguously *on the other site* while authenticating.
+
+<Flow caption="The redirect chain. Nothing is pushed — each hop is a reply the browser chooses to follow." steps={[{ label: "App", note: "302 with a Location", accent: "muted" }, { label: "Browser", note: "follows it, URL bar changes", accent: "accent" }, { label: "Authorization server", note: "authenticates, asks consent", accent: "signal" }, { label: "Browser", note: "follows the 302 back", accent: "accent" }, { label: "App callback", note: "receives code + state", accent: "amber" }]} />
+
+## What the /authorize request has to carry
+
+Given the constraint, the app gets exactly one chance to say everything it needs to say, and it has to say it in a URL, in public, in front of the user. That shapes the parameter list.
+
+```http title="the authorize request (wrapped for readability)"
+GET /authorize?response_type=code
+    &client_id=console-web
+    &redirect_uri=https%3A%2F%2Fconsole.example.com%2Fcallback
+    &scope=openid%20profile%20schedules.read
+    &state=Yy8kQ2p1bE4tMnFa
+    &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+    &code_challenge_method=S256 HTTP/1.1
+Host: auth.example.com
+```
+
+| Parameter | Why it has to be there |
+| --- | --- |
+| `client_id` | The server has never met this app. It needs a registered identity to look up allowed redirect URIs, allowed scopes and client type. |
+| `redirect_uri` | The reply address. Must be pre-registered, or anyone could point the result at a host they control. |
+| `response_type=code` | Which flow is being asked for. `code` means "reply with a reference, not a token". |
+| `scope` | What the app is asking permission for, in the vocabulary shown to the user on the consent screen. |
+| `state` | Binds this response to the session that started it. |
+
+### state, and why login CSRF is a real attack
+
+`state` took me the longest to take seriously, because on the happy path it looks like a useless echo field.
+
+The attack it prevents runs in the opposite direction from the one you expect. An attacker starts an authorization request against *their own* account, captures the resulting callback URL with its code, and gets a victim to visit that URL. The victim's browser hits the app's callback, the app exchanges the code, and the victim's session is now silently linked to the attacker's identity at the provider. Anything the victim does next lands in the attacker's account.
+
+The fix: the app generates an unguessable `state`, stores it against the user's own pre-login session, and refuses any callback whose `state` does not match what that browser started with. An attacker can forge a URL. They cannot forge a value tied to a cookie they do not have.
+
+<Callout type="note">
+On the OpenID Connect side there is a similar-looking parameter with a different job. `nonce` is echoed inside the signed ID token rather than in the query string, which binds the *token* to the request, not the *callback* to the session. They are not substitutes for each other.
+</Callout>
+
+## The authorization code is a reference, not a credential
+
+The response to all of that is another 302 back to the registered `redirect_uri`:
+
+```http
+HTTP/1.1 302 Found
+Location: https://console.example.com/callback?code=SplxlOBeZQQYbYS6WxSbIA&state=Yy8kQ2p1bE4tMnFa
+Cache-Control: no-store
+```
+
+That `code` is the part I most misread early on. It is not a small token, or a compressed one. It grants nothing by itself. It is an opaque reference to a record the authorization server holds in its own storage — who the user is, which client asked, which scopes were approved, which PKCE challenge was presented.
+
+It is deliberately built to be nearly worthless in transit:
+
+- **Short-lived.** The spec recommends ten minutes as a maximum and implementations commonly use far less. It only has to survive one HTTP hop.
+- **Single-use.** Redeem it twice and a conforming server revokes everything issued from it, because a replay means someone else saw it.
+- **Bound to the client.** It is issued to one `client_id` and only that client can redeem it.
+- **Bound to the redirect URI.** This is why `redirect_uri` is sent *again* at the token endpoint — the server compares it against the one used at `/authorize`, and a mismatch fails the exchange.
+
+The code is designed on the assumption that it will leak. Browser history, referrer headers, proxy logs, a screenshot in a support ticket — a value in a URL is a value in a dozen places you do not control. The design makes leakage survivable instead of pretending it cannot happen.
+
+## Front channel and back channel
+
+This is the idea everything else hangs off. Once it landed, the rest of OAuth stopped feeling arbitrary.
+
+The **front channel** is anything that travels through the browser: query strings, fragments, form posts, redirects. It is visible to the user, to extensions, to history, and potentially to anything else running on the page. It can carry the user's session across domains, which is the only reason it is used at all.
+
+The **back channel** is a direct HTTPS request from the application's server to the authorization server. None of it touches the browser. It can reach any host, but it carries none of the user's browser state — no cookies, no session at the identity provider — which is why it cannot start the flow, only finish it.
+
+| Property | Front channel | Back channel |
+| --- | --- | --- |
+| Carried by | The user's browser | Server-to-server HTTPS |
+| Can carry the user's session | Yes | No |
+| Who can observe it | User, extensions, history, logs | The two servers |
+| Safe to carry | A short-lived, single-use reference | Long-lived secrets and tokens |
+
+The flow is what you get when you need both. Only the front channel can reach the identity provider and come back, so it carries the thing designed to be leaked. Only the back channel is private enough for real credentials. The authorization code is the hinge between them: cheap enough to send through the front channel, useful enough to trade on the back.
+
+## The exchange at /token
+
+Once the app's server has the code, it makes its own request. No browser involved.
+
+```http
+POST /token HTTP/1.1
+Host: auth.example.com
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic Y29uc29sZS13ZWI6czNjcjN0
+
+grant_type=authorization_code&code=SplxlOBeZQQYbYS6WxSbIA
+&redirect_uri=https%3A%2F%2Fconsole.example.com%2Fcallback
+&code_verifier=dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk
+```
+
+Three separate proofs are checked here at once. The client authenticates, with a secret if it is a confidential client. The code proves the user completed an authorization. The `code_verifier` proves that whoever is redeeming the code is the party that started the request, since only they know the preimage of the `code_challenge` sent at the beginning.
+
+PKCE was originally specified for mobile and native apps, where a custom URI scheme could be claimed by another installed app and the code intercepted. It is now recommended for every client type, because the cost is a hash and the failure it prevents is total.
+
+The response comes back over that private connection, never through the browser:
+
+```json
+{
+  "token_type": "Bearer",
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6...",
+  "expires_in": 900,
+  "refresh_token": "8xLOxBtZp8",
+  "scope": "openid profile schedules.read"
+}
+```
+
+## Access tokens and refresh tokens
+
+An access token is a bearer credential. Whoever holds it can use it, and APIs accept it without any further conversation with the authorization server — either because it is a signed JWT the API verifies locally against the provider's JWKS, or because the API introspects it once and caches the result.
+
+That is what makes access tokens fast and what makes them dangerous. Checking with the identity provider on every call gives up the performance that made stateless verification attractive in the first place. A stolen access token works until it expires.
+
+So the only real lever is lifetime, and lifetime pulls in two directions. Short tokens limit the damage of a leak but force the user to log in again constantly. Long tokens are convenient and stay valid long after an account has been disabled.
+
+The refresh token splits the two jobs apart:
+
+- The **access token** is short-lived, sent to many APIs, and carries no ability to renew itself.
+- The **refresh token** is longer-lived, sent to exactly one endpoint on one host, and never seen by any resource server.
+
+Revocation then has somewhere to bite. Disable an account and the current access token still works for its remaining minutes, but the next refresh fails and the session ends. The exposure window becomes a number you can tune rather than a structural property.
+
+<Callout type="gotcha">
+Refresh only buys you this if the refresh token actually stays on the back channel. Put one in browser-accessible storage and you have built a long-lived credential sitting in the most hostile place in the system — which is why public clients are expected to use rotating refresh tokens with reuse detection, if they use them at all.
+</Callout>
+
+## Why implicit is discouraged now
+
+The implicit flow removed the second round trip: `response_type=token`, and the access token came straight back in the URL fragment of the redirect. It existed for a concrete reason. Browser-based apps in 2012 could not reliably make a cross-origin POST to a token endpoint, and a public client has no secret to authenticate with anyway. Implicit was the pragmatic workaround.
+
+It is discouraged today because every property that made the authorization code safe to expose is missing from an access token.
+
+| Property | Code | Token via implicit |
+| --- | --- | --- |
+| Value in the URL | Reference, grants nothing alone | Live credential |
+| If it leaks | Useless without the code verifier (and client secret, if confidential) | Immediately usable |
+| Single use | Yes | No |
+| Lifetime | Seconds to minutes | Minutes to hours |
+| Client authentication | Required for confidential clients; PKCE for public ones | None possible |
+
+Fragments are not sent to servers, which is a real mitigation, but it only narrows the exposure — the token still sits in browser memory, in history, and in reach of any script that reads `location.hash`. No refresh token could be issued this way either, which pushed apps into hidden-iframe renewal tricks that third-party cookie restrictions have since broken.
+
+The original justification also expired. CORS is universal, and PKCE gives a public client a way to prove it started the request without holding a secret. Authorization Code with PKCE does the same job strictly better, so the current guidance is blunt: do not use implicit, for any client type.
+
+## What actually clicked
+
+If I could hand one sentence back to myself from a year ago, it would not be about tokens. It would be that the authorization server cannot do anything to anyone. It can only answer.
+
+Start there and the flow stops being a diagram to memorise. The redirect is the only way to cross a domain boundary with the browser's cooperation. The URL bar changing is the user's proof of where they are. The code exists because something has to survive the trip through the browser without being worth stealing. The exchange is server-to-server because that is the only channel private enough for a real credential. The refresh token exists because bearer tokens cannot be un-issued.
+
+Nothing in it is ceremony. Each piece is the cheapest available answer to a constraint that will not move.

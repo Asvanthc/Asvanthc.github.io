@@ -1,0 +1,195 @@
+---
+title: "PKCE: the attack it stops, and why it is now the default"
+description: "Why a public OAuth client cannot prove who it is at the token endpoint, how a stolen authorization code turns into real tokens, and how PKCE makes that code inert."
+summary: "A public client ships no secret, so the token endpoint has no way to tell the real app from anyone else holding the same authorization code. PKCE closes that gap by binding the code to the flow that started it."
+date: 2025-05-11
+tags: ["PKCE", "OAuth 2.0", "Security"]
+featured: false
+---
+
+The authorization code flow has one step that quietly assumes something it cannot always check. The client sends a code to the token endpoint and says "give me tokens for this". The authorization server answers. The whole security of that exchange rests on the server being able to tell that the caller is the same party that started the flow. For a server-side web app with a client secret, that check is easy. For a mobile app or a single-page app, there is nothing to check with.
+
+That gap is the entire reason PKCE exists. Not "extra hardening", not a checkbox in a security review. It replaces a proof that public clients were never able to give in the first place.
+
+I have spent a fair amount of my time at Zeetaminds on the identity side of things: OAuth 2.0 and OpenID Connect flows, token and session lifetimes, JWT verification against a JWKS. PKCE was one of the pieces I thought I understood long before I actually did.
+
+<Callout type="wrong" title="What I originally believed">
+I read PKCE as "the client secret, but for apps that cannot keep secrets" — a dynamically generated secret that does the same job. That framing is wrong in a way that matters. PKCE authenticates nothing about the client. It proves that whoever is redeeming the code is the same party that requested it. Those are different claims, and mixing them up leads to bad deployment decisions.
+</Callout>
+
+## Public clients and the secret they cannot keep
+
+OAuth 2.0 splits clients into two kinds based on one question: can this client hold credentials without disclosing them?
+
+A confidential client can. It runs on a server you control. The secret sits in a config store or environment variable, and users never see the process it runs in. At the token endpoint it authenticates with `client_id` plus `client_secret` (or a signed assertion, or mTLS), and the authorization server knows who it is talking to.
+
+A public client cannot. A mobile app ships its secret inside the binary — anyone can pull the APK or IPA apart and read strings out of it. A SPA ships its secret to the browser, where it is one devtools tab away from being copied. Obfuscation does not change the category. If every installation has the same secret and every installation is in the hands of a user, the secret is public by definition.
+
+So the spec is honest about it: public clients do not authenticate at the token endpoint. They send `client_id`, the `code`, and the `redirect_uri`. That is it.
+
+Which means the token endpoint, presented with a valid unused code, has no way to distinguish the legitimate app from anyone else who managed to get hold of that code.
+
+## How the code gets stolen on mobile
+
+The remaining question is whether anyone can actually get the code. On mobile, historically, yes.
+
+The authorization code comes back to the app through a redirect. Native apps could not use an `https` URL for that, so the common pattern was a custom URI scheme — something like `com.example.myapp:/oauth/callback`. The app registers the scheme with the OS, the system browser hands the redirect to the registered handler, and the app receives the code.
+
+The problem is that custom schemes were never a namespace anyone owned. There is no registry, no verification, no proof that `com.example.myapp` belongs to the company that ships `com.example.myapp`. A second app could declare the same scheme. Depending on the OS and version, the result was either a disambiguation dialog that most users click through without reading, or the redirect simply going to whichever app the system picked.
+
+That is enough. A malicious app installed on the same device declares the same scheme, receives the redirect, and reads the code out of the query string.
+
+<Flow
+  caption="Code interception against a public client with no PKCE"
+  steps={[
+    { label: "App starts flow", note: "opens system browser", accent: "accent" },
+    { label: "User authenticates", note: "real AS, real credentials", accent: "signal" },
+    { label: "Redirect with code", note: "custom scheme", accent: "amber" },
+    { label: "Malicious app receives it", note: "same scheme claimed", accent: "rose" },
+    { label: "Attacker calls /token", note: "no secret required", accent: "rose" }
+  ]}
+/>
+
+Nothing in that sequence is a broken cryptographic primitive. The user really did authenticate at the real authorization server. The code really was issued to the real `client_id`. The attacker just stood in the right place at the right moment, and the token endpoint had no question it could ask that the attacker could not answer.
+
+Custom scheme hijacking is the cleanest version of the story, but it is not the only path. Codes have leaked through OS-level logs, browser history, referrer headers on the redirect page, open redirectors on the client's own domain, and shared loopback ports on desktop. Treat the channel that carries the code back to the client as something you cannot fully trust.
+
+## PKCE: bind the code to the flow that started it
+
+PKCE (RFC 7636, Proof Key for Code Exchange, pronounced "pixy") adds one secret per authorization request instead of one secret per client. The client makes it up on the spot, keeps it in memory, and proves knowledge of it at the token endpoint.
+
+Three values:
+
+| Value | Where it is created | Where it travels |
+| --- | --- | --- |
+| `code_verifier` | Client, per request | Only in the token request (back channel) |
+| `code_challenge` | Client, derived from verifier | Authorization request (front channel) |
+| `code_challenge_method` | Client, should be `S256` | Authorization request (front channel) |
+
+The verifier is a high-entropy random string, 43 to 128 characters from the URL-safe unreserved set. The usual construction is 32 random bytes, base64url-encoded without padding, which lands on exactly 43 characters. The challenge is `BASE64URL(SHA256(ASCII(code_verifier)))`.
+
+<Callout type="key">
+PKCE binds the authorization code to whoever started the flow. The code alone stops being useful, because redeeming it now requires a secret that only ever existed in the memory of the process that made the original request.
+</Callout>
+
+### Generating the pair
+
+For a quick sanity check against an authorization server, the shell version is enough:
+
+```bash title="pkce.sh"
+# 32 random bytes -> base64url, no padding -> 43-char verifier
+verifier=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
+
+# challenge = BASE64URL(SHA256(ASCII(verifier)))
+challenge=$(printf '%s' "$verifier" \
+  | openssl dgst -binary -sha256 \
+  | openssl base64 \
+  | tr '+/' '-_' | tr -d '=')
+
+echo "verifier:  $verifier"
+echo "challenge: $challenge"
+```
+
+In a browser client, use the Web Crypto API. Do not hand-roll a random string from `Math.random()` — it is not a CSPRNG, and the entropy of the verifier is the only thing standing between an attacker and a working token exchange.
+
+```js title="pkce.js"
+const b64url = (bytes) =>
+  btoa(String.fromCharCode(...new Uint8Array(bytes)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+export async function createPkcePair() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(verifier)
+  );
+  return { verifier, challenge: b64url(digest), method: 'S256' };
+}
+```
+
+Store the verifier where the flow can pick it up on return, and nowhere broader than that. In a SPA, session storage keyed to the in-flight request is typical. Delete it as soon as the token response comes back, success or failure.
+
+### What the two endpoints do with it
+
+The authorization request carries the challenge and the method:
+
+```http
+GET /authorize?response_type=code
+  &client_id=s6BhdRkqt3
+  &redirect_uri=com.example.myapp%3A%2Foauth%2Fcallback
+  &scope=openid%20profile
+  &state=Zx9Qb1k7
+  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+  &code_challenge_method=S256
+```
+
+The authorization server records the challenge and the method alongside the code it issues. The token request carries the verifier:
+
+```http
+POST /token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=SplxlOBeZQQYbYS6WxSbIA
+&redirect_uri=com.example.myapp%3A%2Foauth%2Fcallback
+&client_id=s6BhdRkqt3
+&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+```
+
+The server hashes the verifier with the stored method and compares it to the stored challenge. Mismatch means `invalid_grant`, and the code is burned.
+
+Now replay the interception. The malicious app still receives the code. It also sees the challenge, because the authorization request went through the front channel. What it does not have is the verifier, which never left the legitimate app's memory. It cannot invert SHA-256 to produce one. The stolen code is inert.
+
+## Why S256 and not plain
+
+RFC 7636 defines two methods. `S256` sends the hash. `plain` sends the verifier itself as the challenge.
+
+Think about what `plain` actually protects. The threat model says the front channel — the authorization request and the redirect — is where the attacker is. `plain` puts the verifier in that same front channel. An attacker who can read the code can read the verifier sitting next to it, and can then complete the exchange exactly as before.
+
+`plain` exists for constrained clients with no SHA-256 available, and the spec is explicit that servers should reject it where possible. In practice, if you are writing a client, there is no reason to send anything other than `S256`.
+
+<Callout type="gotcha" title="The downgrade, on the server side">
+If you are on the authorization server side, the method must be taken from the authorization request and stored with the code. Never infer it at the token endpoint from what the client sends. Otherwise an attacker who has observed the `S256` challenge on the front channel can present that challenge string itself as the `code_verifier` and tell the token endpoint the method was `plain`. A server that trusts the client-supplied method compares the two as literals and the check passes. Use only the method recorded with the code at authorization time. The strongest position is to support `S256` only, and reject `plain` outright.
+</Callout>
+
+## PKCE is not client authentication
+
+This is the part I had backwards, and it shows up as a real deployment mistake.
+
+PKCE proves continuity: the party redeeming the code is the party that requested it. It says nothing about which application that party is. Anyone can generate a verifier. A malicious app could run the whole flow itself with a stolen `client_id`, produce a perfectly valid challenge and verifier pair, and get tokens — if the user authenticates and consents.
+
+So for a confidential client, PKCE does not replace the client secret. Both apply. The secret answers "which client is this", PKCE answers "is this the same flow". Dropping client authentication because you added PKCE weakens the deployment.
+
+What actually constrains which app can receive the redirect is the redirect URI: exact string matching on the server side, and platform-verified redirects on the client side — App Links on Android, Universal Links on iOS, both tied to a domain you control. PKCE and verified redirects solve adjacent problems and you want both.
+
+## PKCE is not a replacement for state
+
+These get conflated constantly, and the distinction is simple once you name the attacker's goal.
+
+| Dimension | `state` | PKCE | `nonce` (OIDC) |
+| --- | --- | --- | --- |
+| Attack | Login CSRF: attacker's code injected into victim's session | Code interception: victim's code stolen and redeemed | ID token replay/injection |
+| Direction | Attacker pushes their code onto you | Attacker pulls your code away | Attacker replays a token |
+| Checked by | Client, against its own session | Authorization server, at `/token` | Client, against the ID token claim |
+
+With `state` and no PKCE, a stolen code is still redeemable by the thief. PKCE happens to cover the injection case too: if an attacker feeds you a code from their own session, your client redeems it with the verifier from your request, the injected code was issued against a different challenge, and the exchange fails with `invalid_grant`. RFC 9700 and OAuth 2.1 both say so — `state` is no longer required purely for CSRF when PKCE is in use. I still send it. It is cheap, it carries the return-to URL I wanted to carry anyway, and it does not depend on the authorization server actually enforcing PKCE or on my verifier storage being strictly bound to the browser session. Send both. Generate both with a CSPRNG. Validate both.
+
+## Why confidential clients get PKCE too
+
+The direction of travel in OAuth 2.1 is that PKCE applies to every authorization code request, confidential clients included. The reason is code injection, not interception.
+
+Consider an attacker who obtains a valid code through some other weakness — a leaky log, an open redirector, a misbehaving browser extension. They inject it into a victim's in-flight session with the legitimate client. The client, being legitimate, authenticates correctly at the token endpoint and exchanges the code. Client authentication does not help here, because the client really is the client. With PKCE, the exchange fails: the client sends the verifier from its own request, and the injected code was issued against a different challenge.
+
+That is also why OIDC has `nonce`, which covers the equivalent injection at the ID token layer. PKCE and `nonce` overlap in effect and do not replace each other; `nonce` is checked by the client against the token, PKCE is checked by the server against the code.
+
+## The short version
+
+- Public clients cannot authenticate at the token endpoint. That is a property of where they run, not a configuration mistake.
+- A code that travels back through a channel anyone can claim is a code anyone can spend.
+- PKCE swaps a static per-client secret for a fresh per-request one that never touches the front channel.
+- `S256` always. `plain` puts the secret in the same place as the thing it is protecting.
+- PKCE, `state`, exact redirect URI matching, and client authentication where you have it. Four separate controls, four separate attacks.
+
+Most decent OAuth libraries will do all of this for you if you let them. The reason to understand the mechanism anyway is that you will eventually read a flow that fails with `invalid_grant` and have to work out whether it is a storage bug, an encoding bug, or something trying very hard to redeem a code it should not have.

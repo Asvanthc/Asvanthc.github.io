@@ -1,0 +1,124 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Section from '../components/Section.astro';
+import Hero from '../components/Hero.astro';
+import IdentityGrid from '../components/IdentityGrid.astro';
+import Experience from '../components/Experience.astro';
+import WorkGrid from '../components/WorkGrid.astro';
+import SkillMap from '../components/SkillMap.astro';
+import Principles from '../components/Principles.astro';
+import Learning from '../components/Learning.astro';
+import Timeline from '../components/Timeline.astro';
+import Credentials from '../components/Credentials.astro';
+import Contact from '../components/Contact.astro';
+import PostList from '../components/PostList.astro';
+import Icon from '../components/Icon.astro';
+import { getPosts } from '../lib/posts';
+
+const posts = await getPosts();
+const latest = posts.slice(0, 5);
+---
+
+<BaseLayout>
+  <Hero />
+
+  <Section
+    id="about"
+    eyebrow="Engineering identity"
+    title="I build beyond the interface."
+    lede="Most of what I work on has no screen. It is the layer that decides whether the thing with a screen can be simple — and it spans five areas that turn out to be the same problem seen from different heights."
+  >
+    <IdentityGrid />
+  </Section>
+
+  <Section
+    id="experience"
+    eyebrow="Current work"
+    title="Where I spend my days"
+    lede="Production software at a digital signage company: the backend that serves it, the identity layer that guards it, and the device code that has to behave the same on three vendors’ hardware."
+  >
+    <Experience />
+  </Section>
+
+  <Section
+    id="engineering"
+    eyebrow="Selected engineering work"
+    title="Problems worth writing down"
+    lede="Two anonymised case studies from work, one personal project, and two slots I have deliberately left empty rather than fill with something invented."
+  >
+    <WorkGrid />
+  </Section>
+
+  <Section
+    id="skills"
+    eyebrow="Capability map"
+    title="What I actually know, and how well"
+    lede="No percentages — a number like “Java 70%” means nothing to the person reading it. Three honest levels instead, and the difference between them matters."
+  >
+    <SkillMap />
+  </Section>
+
+  <Section
+    id="principles"
+    eyebrow="How I think"
+    title="How I think about engineering"
+    lede="Ten things I actually believe about building software, most of them learned the expensive way."
+  >
+    <Principles />
+  </Section>
+
+  <Section
+    id="learning"
+    eyebrow="Direction"
+    title="Currently learning"
+    lede="Stated as direction, not achievement. These are the areas I am deliberately spending time on — none of them are finished."
+  >
+    <Learning />
+  </Section>
+
+  {
+    latest.length > 0 && (
+      <Section
+        id="writing"
+        eyebrow="Engineering notes"
+        title="Things I have had to understand properly"
+        lede="Mostly written after debugging something and realising my mental model was wrong. Identity, device platforms, media, and what actually changes when a language model joins the system."
+      >
+        <PostList posts={latest} compact headingLevel="h3" />
+        <a class="btn btn-secondary see-all" href="/writing">
+          All {posts.length} notes <Icon name="arrow" />
+        </a>
+      </Section>
+    )
+  }
+
+  <Section id="timeline" eyebrow="Path" title="How I got here">
+    <div class="split">
+      <Timeline />
+      <Credentials />
+    </div>
+  </Section>
+
+  <Section id="contact" class="section-last" labelledby="contact-heading">
+    <Contact />
+  </Section>
+</BaseLayout>
+
+<style>
+  .see-all {
+    margin-top: 1.75rem;
+  }
+
+  .split {
+    display: grid;
+    gap: clamp(2rem, 5vw, 3.5rem);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 980px) {
+    .split {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      align-items: start;
+    }
+  }
+</style>

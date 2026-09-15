@@ -1,0 +1,168 @@
+---
+title: "Designing IAM as a separate domain"
+description: "Identity needs its own domain boundary: authentication decisions leak into state, session lifetime and service trust, so scattering them erases your trust boundaries"
+summary: "Identity gets its own service not because it is tidy, but because authentication decisions quietly determine where state lives and which service may trust which token. Scatter those decisions and you can no longer describe your trust boundaries at all."
+date: 2026-03-15
+tags: ["Identity", "Architecture", "Security"]
+featured: false
+---
+
+Here is a question worth asking about any system you work on: if a user's account is compromised right now, what exactly do you have to do to make every session belonging to that user stop working, and how long does it take?
+
+If the answer requires you to name three services, two caches and a cookie that one of them sets on a slightly different domain, identity is not a domain in your architecture. It is a habit that each service picked up independently.
+
+I have spent a good part of my time at Zeetaminds working on the identity side of a digital signage platform — a CMS that schedules media out to displays in shops, offices and public spaces. Most of what I learned came from debugging the seams rather than from drawing boxes. This post is about why identity earns a boundary of its own, what goes on each side of it, and what that boundary actually costs you.
+
+## The failure mode is not duplication
+
+The usual argument for extracting auth into a service is that you stop writing the login form five times. That argument is true and also weak. Duplication is annoying, not dangerous.
+
+The real problem is that authentication decisions are not local. Every one of them leaks:
+
+- Where session state lives decides whether you can scale a service horizontally without sticky sessions.
+- Session lifetime decides how long a stolen credential is useful.
+- Which service accepts which token decides your blast radius when one service is compromised.
+- Where credentials are handled decides how much of your codebase is in scope when someone asks "who can read a password hash?"
+
+When each application answers those four questions for itself, there is no single place where the answers are written down. You cannot look at the system and say what the trust boundaries are, because there aren't any — there is a mesh of services that all sort of trust each other for reasons nobody has recorded.
+
+<Callout type="wrong" title="What I originally believed">
+I used to think of the identity service as a shared library that happened to be deployed separately — a convenience, a way to avoid copy-pasting token parsing. That framing is backwards. A shared library still leaves every consumer free to decide what it trusts. A domain boundary is valuable precisely because it *removes* that freedom from consumers and concentrates it in one place you can audit.
+</Callout>
+
+## What belongs on each side
+
+The split that has held up for me: the identity domain answers *who this principal is*. The application answers *what this principal may do to this resource*. Those are different questions with different data, and only one of them can be answered centrally.
+
+| Identity domain | Application domain |
+| --- | --- |
+| Which principals exist, and their identifiers | Which resources exist, and who owns them |
+| Credential handling: password hashing, reset flows | Whether user X may edit playlist Y |
+| MFA enrolment and challenge | Role and permission assignment within a tenant |
+| Session creation, extension, termination | Feature gating and plan limits |
+| Token issuance, signing, expiry, refresh | Token verification and claim interpretation |
+| Signing key material and rotation | Audit of business actions |
+| Consent and client registration | Resource-level audit and ownership rules |
+
+The row that people fight about is authorisation. It is tempting to push roles into the identity provider, because the provider already knows the user and it feels like one less lookup.
+
+It does not work past a certain point, and the reason is structural: the identity provider does not know what a resource is. It has no idea that a playlist belongs to a display group, that the display group belongs to a tenant, or that a user with an operator role in one tenant is a viewer in another. Encode that in the token and you have moved a slice of your business model into a service that has no business logic, cannot validate it, and now has to be redeployed whenever your permission model changes.
+
+Coarse claims are fine in a token — tenant, a small set of roles, maybe a plan tier. Anything that requires knowing the shape of a resource belongs to the service that owns that resource.
+
+<Callout type="gotcha">
+A token claim is a *snapshot from issue time*, not a live read. If you put a role in an access token with a one-hour lifetime, demoting a user takes effect up to an hour later. That is sometimes acceptable and sometimes a security incident. Decide which before you put the claim in.
+</Callout>
+
+## The trust boundary is the design artifact
+
+The service is an implementation detail. The boundary is the thing you are actually designing, and the useful exercise is to write down exactly what crosses it.
+
+<Flow
+  caption="The only artifact crossing the boundary is a signed token. Everything downstream verifies it independently."
+  steps={[
+    { label: "User agent", note: "untrusted", accent: "rose" },
+    { label: "Identity provider", note: "holds credentials + private key", accent: "accent" },
+    { label: "Signed token", note: "the only thing that crosses", accent: "amber" },
+    { label: "API service", note: "verifies signature, reads claims", accent: "signal" },
+    { label: "Resource decision", note: "local authorisation", accent: "muted" }
+  ]}
+/>
+
+One artifact crosses: a signed token. Not a user object. Not a session handle that requires a database the consumer also has access to. Not a header set by a gateway that a service trusts because it assumes nothing else can reach it.
+
+<Callout type="key" title="Verification, not trust">
+Every consumer of identity verifies the token itself — signature against the published public key, issuer, audience, expiry — rather than trusting the caller that handed it over. This is what makes the boundary real. If a service accepts a claim because of *where the request came from*, the boundary has silently moved to your network topology, which is a much worse place to keep it.
+</Callout>
+
+That is also why asymmetric signing matters architecturally and not just cryptographically. With RS256, the identity provider holds the private key and every consumer fetches public keys from a JWKS endpoint. Verification is a pure function of the token and a public key. No shared secret to distribute, no secret to rotate across a fleet, and no consumer that could mint a token even if it wanted to.
+
+```java title="VerifyExample.java"
+// Illustrative. Every consumer does this, independently, on every request.
+public Claims verify(String token, JwkProvider keys) {
+    DecodedJwt jwt = Jwt.decode(token);
+    PublicKey key = keys.get(jwt.keyId());          // from JWKS, cached
+    if (!jwt.signatureValid(key))   throw new AuthError("bad signature");
+    if (!EXPECTED_ISSUER.equals(jwt.issuer()))  throw new AuthError("bad iss");
+    if (!jwt.audience().contains(MY_AUDIENCE))  throw new AuthError("bad aud");
+    if (jwt.expiry().isBefore(Instant.now()))   throw new AuthError("expired");
+    return jwt.claims();
+}
+```
+
+Twenty lines, no network call in the hot path once keys are cached, and the same twenty lines in every service. The uniformity is the point.
+
+### One private key, in one place
+
+Follow the boundary to its conclusion and you get a rule: the private signing key exists in exactly one service, and nothing else can produce a valid token.
+
+What that buys you is not abstract. Key rotation becomes a procedure in one place — publish the new key in JWKS, wait for caches to pick it up, start signing with the new key ID, retire the old one after the longest token lifetime has passed. Consumers do nothing. Nobody coordinates a release.
+
+It also collapses the incident question. If a token turns out to be forged, there is exactly one service to investigate. When four services can sign, "where did this token come from" is an archaeology project.
+
+## What falls out for free
+
+### SSO stops being a feature
+
+Once authentication happens at a single provider that owns the session, single sign-on is not something you build. It is what the architecture already does. The second application redirects a user who already has a live session at the provider, the provider recognises the session and returns an authorisation code without prompting, and the user perceives it as "already logged in".
+
+Nobody wrote an SSO feature. Nobody synchronised anything. It is a consequence of there being one place where the session lives.
+
+### Adding an application means registering a client
+
+A new app, an admin console, a mobile client, a partner integration — the work is registering a client: an identifier, redirect URIs, allowed grant types, scopes. Public clients use Authorization Code with PKCE and no secret. Confidential clients get a secret they can actually keep.
+
+You do not reimplement login. You do not touch credential handling. That is the practical payoff of the boundary, and it is the one that shows up in delivery time.
+
+## The costs, stated honestly
+
+This is where most write-ups get thin, so:
+
+**An extra network hop.** Login is now a redirect chain rather than a form post. The code-for-token exchange is a back-channel call. Latency is small but it is not zero, and the redirect chain is one more thing that can go wrong behind a corporate proxy.
+
+**Another service that must be up.** If the identity provider is down, nobody can log in anywhere. Note the precise shape of this: *already-issued tokens keep working until they expire*, because verification only needs a cached public key. So a short provider outage degrades new logins and refreshes, not every in-flight request. That property is worth designing for deliberately — cache JWKS aggressively, do not put a provider call on the request path, and be clear-eyed that a long outage is a full outage.
+
+**Local development gets genuinely harder.** Running one app used to mean running one app. Now it means running an identity provider too, or pointing at a shared dev instance with redirect URIs that have to include localhost, or maintaining a stub issuer that signs with a throwaway key. All three options have real friction, and the stub option quietly risks divergence from the real provider's behaviour.
+
+**A single point of failure you have to design around.** Concentrating trust concentrates risk. That is the trade. You accept it because the alternative — diffuse trust with no boundary — fails in ways you cannot even enumerate.
+
+## Token lifetime is the dial you actually turn
+
+Because verification is offline, a valid token is valid until it expires. There is no natural revocation. This is the honest weak point of the design and it deserves a plain statement rather than a workaround presented as a feature.
+
+The standard shape: short-lived access tokens, longer-lived refresh tokens, refresh handled at the provider where state does exist.
+
+| Trade-off | Short access token | Long access token |
+| --- | --- | --- |
+| Revocation delay | Bounded by token lifetime | Up to the full lifetime, possibly hours |
+| Token endpoint traffic | Higher — every client refreshes often | Low |
+| Provider outage impact | Felt sooner | Felt later |
+| Stolen-token value | Limited window | Large window |
+
+Refresh is the point where you get a chance to check live state: is this session still valid, has the account been disabled, has the refresh token been reused. Shortening access token lifetime shrinks your revocation window at the cost of more refresh traffic, and pushes more dependence onto provider availability. Pick the number deliberately.
+
+If you need immediate revocation for a genuinely sensitive operation, the options are all somewhat unpleasant: introspection on every request (which throws away the offline verification you built the design around), a denylist of revoked token IDs checked by consumers (state again, in every consumer), or simply treating that operation as one that requires re-authentication. I have not found an elegant answer, and I would be suspicious of anyone who claims one.
+
+## Service-to-service identity is a separate question
+
+When one backend calls another, there is no user and no browser. Authorization Code and PKCE do not apply — they exist to solve problems (a user agent you cannot trust, a redirect you cannot secure) that are not present here.
+
+The client credentials grant covers this: a service authenticates as itself with its own credential and receives a token whose subject is the service, scoped to what that service is allowed to do.
+
+```http
+POST /oauth2/token HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic base64(reports-job:s3cret)
+
+grant_type=client_credentials&scope=reports.read
+```
+
+That `Authorization` header is the client authentication, and it is not optional — this grant has no user, no code and no redirect, so the credential in the header is the only thing identifying the caller. A token endpoint that follows the spec rejects the request without it. Sending `client_id` and `client_secret` as form parameters in the body is the other permitted form, but the header is the one to prefer.
+
+Worth keeping separate in your head, because the design pressures differ. Service credentials are long-lived and live in a secrets manager rather than a browser. There is no consent step, because there is no human to consent. And the scopes should be narrower than a user's, not broader — a background job that reads reports should not be carrying a token that could also delete them just because it was easier to issue one token type.
+
+## Where I would start
+
+If you are looking at a system with identity scattered across it, the useful first move is not extraction. It is writing the boundary down: list every place that makes an authentication decision, and for each one, note what it trusts and why. That list is usually shorter than expected and more alarming than expected.
+
+The extraction is mechanical once that document exists. The document is the design.

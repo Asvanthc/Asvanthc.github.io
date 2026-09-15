@@ -1,0 +1,174 @@
+---
+/** Typography for rendered MDX. Scoped so it never leaks into the chrome. */
+---
+
+<div class="prose">
+  <slot />
+</div>
+
+<style is:global>
+  .prose {
+    font-size: var(--step-0);
+    line-height: 1.75;
+    color: var(--text-muted);
+    max-width: var(--measure);
+  }
+
+  .prose > * + * { margin-top: 1.15em; }
+
+  .prose p { text-wrap: pretty; }
+
+  .prose h2,
+  .prose h3,
+  .prose h4 {
+    color: var(--text);
+    scroll-margin-top: 5.5rem;
+  }
+
+  .prose h2 {
+    font-size: var(--step-2);
+    margin-top: 2.6em;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--border);
+    letter-spacing: -0.024em;
+  }
+
+  .prose h3 {
+    font-size: var(--step-1);
+    margin-top: 2em;
+    letter-spacing: -0.018em;
+  }
+
+  .prose h4 {
+    font-size: var(--step-0);
+    margin-top: 1.7em;
+    font-weight: 620;
+  }
+
+  .prose h2 + *,
+  .prose h3 + *,
+  .prose h4 + * { margin-top: 0.7em; }
+
+  .prose a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent) 38%, transparent);
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--dur) var(--ease);
+  }
+
+  .prose a:hover { text-decoration-color: currentColor; }
+
+  .prose strong { color: var(--text); font-weight: 600; }
+
+  .prose ul,
+  .prose ol {
+    padding-left: 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+  }
+
+  .prose li::marker { color: var(--text-faint); }
+  .prose li > ul, .prose li > ol { margin-top: 0.5em; }
+
+  /* --- Inline code --- */
+  .prose :not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.87em;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+    color: var(--text);
+    word-break: break-word;
+  }
+
+  /* --- Blockquote --- */
+  .prose blockquote {
+    border-left: 2px solid var(--accent);
+    padding: 0.2rem 0 0.2rem 1.1rem;
+    color: var(--text-muted);
+    font-style: normal;
+  }
+
+  .prose blockquote p { margin-top: 0.5em; }
+  .prose blockquote > :first-child { margin-top: 0; }
+
+  /* --- Tables: scrollable on small screens, never overflowing the page --- */
+  .prose .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .prose table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: var(--step--1);
+    min-width: 34rem;
+  }
+
+  .prose th,
+  .prose td {
+    text-align: left;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .prose thead th {
+    background: var(--bg-subtle);
+    color: var(--text);
+    font-weight: 560;
+    font-size: var(--step--2);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .prose tbody tr:last-child td { border-bottom: 0; }
+
+  .prose hr {
+    margin-block: 2.2em;
+    border-top: 1px solid var(--border);
+  }
+
+  .prose img {
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  .prose figure { margin: 0; }
+
+  .prose figcaption {
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    margin-top: 0.6rem;
+    text-align: center;
+  }
+
+  /* --- Expressive Code blocks --- */
+  .prose .expressive-code {
+    margin-block: 1.6em;
+  }
+
+  .prose .expressive-code pre {
+    border-radius: var(--radius) !important;
+    font-size: var(--step--1);
+  }
+
+  /* Wide content (diagrams, tables) may exceed the reading measure. */
+  .prose .wide {
+    max-width: min(100%, 60rem);
+    width: max(100%, 0px);
+  }
+
+  @media (min-width: 1180px) {
+    .prose .wide {
+      width: calc(var(--measure) + 12rem);
+      max-width: calc(100vw - 2 * var(--page-pad));
+      margin-left: -6rem;
+    }
+  }
+</style>

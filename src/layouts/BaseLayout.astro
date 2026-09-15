@@ -1,0 +1,172 @@
+---
+import '../styles/global.css';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { site } from '../data/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Page-specific OG image path, relative to the site root. */
+  image?: string;
+  type?: 'website' | 'article';
+  publishedDate?: Date;
+  tags?: string[];
+  /** Structured data to inject in addition to the site-level Person schema. */
+  jsonLd?: Record<string, unknown>;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description = site.description,
+  image = '/og.png',
+  type = 'website',
+  publishedDate,
+  tags,
+  jsonLd,
+  noindex = false,
+} = Astro.props;
+
+const pageTitle = title ? `${title} — ${site.name}` : site.title;
+// Match the URLs actually linked on the site (directory-style, trailing slash).
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = new URL(image, Astro.site).href;
+
+const personSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: site.name,
+  url: site.url,
+  email: `mailto:${site.email}`,
+  jobTitle: site.role,
+  worksFor: { '@type': 'Organization', name: site.company },
+  alumniOf: {
+    '@type': 'CollegeOrUniversity',
+    name: 'Amrita Vishwa Vidyapeetham',
+    address: { '@type': 'PostalAddress', addressLocality: 'Coimbatore', addressRegion: 'Tamil Nadu', addressCountry: 'IN' },
+  },
+  knowsAbout: [
+    'Backend engineering',
+    'Java',
+    'Play Framework',
+    'OAuth 2.0',
+    'OpenID Connect',
+    'JSON Web Tokens',
+    'Identity and access management',
+    'Digital signage',
+    'Samsung Tizen',
+    'LG webOS',
+    'Android',
+    'AI engineering',
+  ],
+  sameAs: ['https://github.com/asvanthc', 'https://www.linkedin.com/in/asvanth/'],
+};
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <meta name="author" content={site.name} />
+    <meta name="theme-color" content="#08090a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fcfcfd" media="(prefers-color-scheme: light)" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content={type} />
+    <meta property="og:title" content={title ?? site.title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content={site.locale} />
+    {publishedDate && <meta property="article:published_time" content={publishedDate.toISOString()} />}
+    {publishedDate && <meta property="article:author" content={site.name} />}
+    {tags?.map((t) => <meta property="article:tag" content={t} />)}
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title ?? site.title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="alternate" type="application/rss+xml" title={`${site.name} — Engineering notes`} href="/rss.xml" />
+
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+
+    <script is:inline set:html={JSON.stringify(personSchema)} type="application/ld+json" />
+    {jsonLd && <script is:inline set:html={JSON.stringify(jsonLd)} type="application/ld+json" />}
+
+    {/* Theme resolution before first paint — no flash of the wrong theme. */}
+    <script is:inline>
+      (function () {
+        document.documentElement.classList.add('js');
+        try {
+          var stored = localStorage.getItem('theme');
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark';
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {
+          /* localStorage unavailable (private mode, embedded runtimes) — keep the default. */
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Nav />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+
+    {/* Scroll reveal — progressive enhancement, respects reduced motion. */}
+    <script is:inline>
+      (function () {
+        var nodes = document.querySelectorAll('[data-reveal]');
+        if (!nodes.length) return;
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce || !('IntersectionObserver' in window)) {
+          nodes.forEach(function (n) {
+            n.classList.add('is-visible');
+          });
+          return;
+        }
+        var io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (!entry.isIntersecting) return;
+              var el = entry.target;
+              var delay = Number(el.dataset.revealDelay || 0);
+              setTimeout(function () {
+                el.classList.add('is-visible');
+              }, delay);
+              io.unobserve(el);
+            });
+          },
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.05 },
+        );
+        nodes.forEach(function (n) {
+          io.observe(n);
+        });
+      })();
+    </script>
+  </body>
+</html>

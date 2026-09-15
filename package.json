@@ -1,0 +1,27 @@
+{
+  "name": "asvanthc.github.io",
+  "type": "module",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Personal site of Asvanth C — Software Engineer",
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro check && astro build",
+    "build:fast": "astro build",
+    "preview": "astro preview --host",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@astrojs/mdx": "^8.0.1",
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.3.2",
+    "astro-expressive-code": "^0.44.2",
+    "sharp": "^0.35.4",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,209 @@
+---
+/**
+ * Where the three signage platforms actually diverge.
+ *
+ * Deliberately generic: everything here is a property of the platforms as
+ * publicly documented, not of any particular product's implementation.
+ */
+
+const platforms = [
+  { key: 'samsung', name: 'Samsung', sub: 'Tizen / SSSP', accent: 'rose' },
+  { key: 'lg', name: 'LG', sub: 'webOS Signage', accent: 'amber' },
+  { key: 'android', name: 'Android', sub: 'players & displays', accent: 'signal' },
+] as const;
+
+const rows = [
+  {
+    aspect: 'Runtime',
+    why: 'Decides which language and API features you can use without a polyfill.',
+    values: {
+      samsung: 'Vendor web engine, versioned with the firmware',
+      lg: 'Vendor web engine, versioned with the firmware',
+      android: 'System WebView or a native shell',
+    },
+  },
+  {
+    aspect: 'Device APIs',
+    why: 'Power state, hardware info, capture. No cross-vendor equivalent exists.',
+    values: {
+      samsung: 'Vendor-specific JavaScript APIs',
+      lg: 'Vendor-specific JavaScript APIs',
+      android: 'Android APIs via the host application',
+    },
+  },
+  {
+    aspect: 'Feature detection',
+    why: 'User-agent strings on these devices are unreliable and change with firmware.',
+    values: {
+      samsung: 'Detect capabilities, not the device',
+      lg: 'Detect capabilities, not the device',
+      android: 'Detect capabilities, not the device',
+    },
+  },
+  {
+    aspect: 'Media playback',
+    why: 'Support is a property of the hardware decoder, not of the file being valid.',
+    values: {
+      samsung: 'Hardware decoder limits by model and firmware',
+      lg: 'Hardware decoder limits by model and firmware',
+      android: 'Varies widely with the SoC',
+    },
+  },
+  {
+    aspect: 'Failure mode',
+    why: 'The reason “it does not play” is rarely a useful bug report on its own.',
+    values: {
+      samsung: 'Can fail silently — no error, black output',
+      lg: 'Can fail silently — no error, black output',
+      android: 'More likely to surface an error',
+    },
+  },
+  {
+    aspect: 'Debugging',
+    why: 'How much you can see when something goes wrong on a device you cannot reach.',
+    values: {
+      samsung: 'Remote inspector, when the device allows it',
+      lg: 'Remote inspector, when the device allows it',
+      android: 'Remote debugging over ADB',
+    },
+  },
+  {
+    aspect: 'Update cadence',
+    why: 'Firmware in the field sets the real floor for what you can ship.',
+    values: {
+      samsung: 'Firmware-bound; fleets run mixed versions',
+      lg: 'Firmware-bound; fleets run mixed versions',
+      android: 'Varies by vendor and device policy',
+    },
+  },
+];
+---
+
+<div class="matrix-wrap" tabindex="0" role="region" aria-label="Platform comparison">
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th scope="col" class="aspect-col">Aspect</th>
+        {
+          platforms.map((p) => (
+            <th scope="col" class={`plat plat-${p.accent}`}>
+              <span class="plat-name">{p.name}</span>
+              <span class="plat-sub">{p.sub}</span>
+            </th>
+          ))
+        }
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <th scope="row" class="aspect">
+              <span class="aspect-name">{row.aspect}</span>
+              <span class="aspect-why">{row.why}</span>
+            </th>
+            {platforms.map((p) => (
+              <td>{row.values[p.key]}</td>
+            ))}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .matrix-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .matrix {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 46rem;
+    font-size: var(--step--1);
+  }
+
+  th,
+  td {
+    text-align: left;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  thead th {
+    background: var(--bg-subtle);
+    position: sticky;
+    top: 0;
+  }
+
+  .aspect-col {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 400;
+    width: 26%;
+  }
+
+  .plat {
+    --c: var(--accent);
+    display: table-cell;
+    border-bottom: 2px solid var(--c);
+  }
+
+  .plat-rose { --c: var(--rose); }
+  .plat-amber { --c: var(--amber); }
+  .plat-signal { --c: var(--signal); }
+
+  .plat-name {
+    display: block;
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.012em;
+  }
+
+  .plat-sub {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--c);
+    margin-top: 0.1rem;
+  }
+
+  .aspect {
+    font-weight: 500;
+    background: var(--bg-subtle);
+  }
+
+  .aspect-name {
+    display: block;
+    color: var(--text);
+    font-size: var(--step--1);
+  }
+
+  .aspect-why {
+    display: block;
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    font-weight: 400;
+    margin-top: 0.3rem;
+    line-height: 1.5;
+  }
+
+  td {
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td { border-bottom: 0; }
+
+  tbody tr:hover td { background: var(--surface-2); }
+</style>

@@ -1,0 +1,211 @@
+---
+title: "OIDC vs OAuth 2.0 — what actually happens when you log in"
+description: "OAuth 2.0 grants permission, not identity. Here is what OpenID Connect adds, why an access token is the wrong thing to read, and how nonce differs from state."
+summary: "OAuth 2.0 never defined a way for an application to learn who the user is — it only answers whether an app may act on their behalf. OpenID Connect is the thin layer that fills that gap, and most login bugs come from confusing the two."
+date: 2025-03-30
+tags: ["OpenID Connect", "OAuth 2.0", "Identity"]
+featured: false
+---
+
+My first mental model of a login flow was: the app redirects to the identity provider, the provider sends back a token, the app decodes the token, and now it knows who the user is. One token, one answer. That model is wrong in a specific way, and the specific way it is wrong is the reason OpenID Connect exists at all.
+
+The short version: OAuth 2.0 answers "may this application act on the user's behalf". It never defined a way to answer "who is this user". Those are different questions, and the second one only looks like the first because the same redirect and the same token endpoint are used to answer both.
+
+## OAuth 2.0 was never an authentication protocol
+
+RFC 6749 defines four roles — resource owner, client, authorization server, resource server — and a set of grants that end with the client holding an access token. The entire spec is about delegated access. A user authorises an application to reach a protected resource on their behalf, and the token is the credential that proves the delegation happened.
+
+Read the flow with that framing and the identity gap becomes obvious. An app wants to read your calendar. You are sent to your provider, you consent, the app gets a token scoped to calendar reads. Nothing in that sequence requires the provider to tell the app your name, your email or even a stable identifier. The protocol has done its job completely without ever identifying you.
+
+People built logins on OAuth 2.0 anyway, because every large provider also shipped a profile endpoint. So "log in with OAuth" really meant: get an access token, call that provider's own profile API, trust whatever comes back. It worked. It was also different for every provider — different endpoint, different field names, different identifier semantics, different failure modes. OpenID Connect standardises exactly that missing piece and almost nothing else.
+
+<Callout type="key">
+OIDC is not an alternative to OAuth 2.0. It is a thin identity layer on top of it. Same authorization endpoint, same token endpoint, same authorization code grant. It adds one scope value, one new token and a handful of rules about validating it.
+</Callout>
+
+## Why an access token is not proof of identity
+
+This is the mistake worth being pedantic about, because it fails silently.
+
+<Callout type="wrong">
+What I originally believed: the access token comes back from the identity provider, it is signed, it has a `sub` claim in it, so I can decode it and use that as the logged-in user. It even works in a test environment, which is the dangerous part.
+</Callout>
+
+Three separate things are wrong with that.
+
+**The access token is opaque to the client.** RFC 6749 says access tokens are usually opaque to the client, and it means it. The format is a private contract between the authorization server and the resource server. It might be a JWT today and a random database handle next quarter, and the provider owes you no notice, because nothing in the spec ever promised you could read it. Code that parses an access token is code that depends on an implementation detail of somebody else's system.
+
+**The audience relationship is wrong.** When an access token does carry an `aud`, that audience is an API — the resource server. Your client application is a courier, not the addressee. Validating and acting on a token that was not issued to you is the shape of a confused deputy. If the same provider issues access tokens for several APIs, an access token minted for a different client and a different API can still look perfectly valid to a naive parser.
+
+**It answers a different question.** "This bearer may call these endpoints" is not "this person authenticated, at this time, by these means". A refresh token can keep the first statement true for a long time after the second has gone stale. Even when an access token happens to carry `auth_time` — RFC 9068 allows it as an optional claim in JWT access tokens — it is not yours to read. Authentication time is asserted to you in the ID token; anything inside an access token is a contract between the authorization server and the resource server.
+
+There is also nothing in an access token that binds it to *your* authorization request. That is not a detail — it is the whole reason the ID token carries a nonce, which I will get to.
+
+## The scope value that turns an OAuth flow into a login
+
+The trigger is one word in the authorization request.
+
+```http title="authorization request"
+GET /authorize
+  ?response_type=code
+  &client_id=example-web-app
+  &redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback
+  &scope=openid%20profile%20email
+  &state=Ik9mNDdzUXpY
+  &nonce=n-0S6_WzA2Mj
+  &code_challenge=E9Melhoa2Ow...&code_challenge_method=S256
+```
+
+With `openid` present in `scope`, the authorization server must return an ID token alongside the access token from the token endpoint. Remove it and you are back to plain OAuth 2.0 — the same request, the same code exchange, no identity assertion. That single scope value is the whole switch.
+
+<Flow caption="Authorization code flow with the openid scope" steps={[
+  { label: "App", note: "generates state + nonce + PKCE verifier", accent: "muted" },
+  { label: "/authorize", note: "scope=openid", accent: "accent" },
+  { label: "User authenticates", note: "at the IdP, not at your app", accent: "signal" },
+  { label: "Redirect + code", note: "state checked here", accent: "amber" },
+  { label: "/token", note: "code + verifier", accent: "accent" },
+  { label: "ID token + access token", note: "nonce checked here", accent: "signal" }
+]} />
+
+## The ID token is the identity assertion
+
+The ID token is a JWT, signed by the provider, and unlike the access token it is explicitly meant to be read by the client. Its claims are defined by the spec, not by the provider's product team. A decoded payload looks roughly like this:
+
+```json title="decoded ID token payload"
+{
+  "iss": "https://id.example.com",
+  "sub": "8f4c1d2e-7a3b-4e55-9c10-2b6d0f9a1c77",
+  "aud": "example-web-app",
+  "exp": 1743338400,
+  "iat": 1743338100,
+  "auth_time": 1743338092,
+  "nonce": "n-0S6_WzA2Mj",
+  "azp": "example-web-app",
+  "at_hash": "hK1lTgFq2p0m7eRZ9xYb3A",
+  "sid": "2f1a7c9e-0b44-4c2a-9c1f-51b8a0d3e7c2",
+  "email": "a.user@example.com",
+  "email_verified": true,
+  "name": "A User"
+}
+```
+
+### The claims that carry weight
+
+`iss` is the issuer, and it must match the expected value exactly — string comparison, not a prefix or a hostname check. `aud` must contain your client ID, which is the audience relationship the access token does not give you. `sub` is the stable subject identifier: locally unique within the issuer and never reassigned.
+
+The pair `iss` plus `sub` is the identity key. Not email. Email is a mutable attribute that a user can change, that some providers return unverified, and that can be reassigned inside a company domain after someone leaves. Keying accounts on email is a data model bug that surfaces years later as two people sharing one account.
+
+`auth_time` is when the user actually authenticated, which is not the same as when the token was issued. If you ask for `max_age`, this is the claim you check it against — the provider may have satisfied your request from an existing session that is older than you are willing to accept.
+
+## ID token vs access token
+
+| Property | ID token | Access token |
+| --- | --- | --- |
+| Question it answers | Who authenticated, and when | What may this bearer call |
+| Intended audience (`aud`) | Your client ID | An API / resource server |
+| Who reads it | The client | The resource server |
+| Format | Always a JWT, defined claims | Opaque to the client by default |
+| Typical lifetime | Short; consumed once at login | Minutes to an hour; used repeatedly |
+| Sent to APIs? | No | Yes, as a bearer credential |
+| Renewed? | Not routinely | Yes, via refresh token |
+| Replay defence | `nonce` bound to your request | Audience and scope checks at the API |
+
+The operational rule that falls out of this table: consume the ID token once, at login, to establish your own session. Then forget it. Send the access token to APIs and never parse it.
+
+## UserInfo, and when you actually need it
+
+The UserInfo endpoint is an OAuth-protected resource that returns claims about the authenticated subject. You call it with the access token, not the ID token.
+
+```http
+GET /userinfo HTTP/1.1
+Host: id.example.com
+Authorization: Bearer <access token>
+```
+
+You need it when the provider does not put profile claims in the ID token. Many do not, by policy — the ID token stays small because in some response modes it travels through a URL fragment, and constrained clients choke on long URLs. You also need it when the data is genuinely current-state rather than a fact about the login: display name, picture, group membership that may have changed since the token was minted.
+
+You do not need it when the claims you want are already in a validated ID token. Calling UserInfo on every request to fetch a name you already have is a network round trip buying nothing.
+
+<Callout type="gotcha">
+When you do call UserInfo, compare the `sub` in the response against the `sub` in the ID token and reject a mismatch. The spec requires this. Without the check, a response from a different subject can be attached to the session you just created.
+</Callout>
+
+## Discovery: the metadata document that makes this practical
+
+Fetch `/.well-known/openid-configuration` at the issuer and you get a machine-readable description of the provider.
+
+```json title="trimmed discovery document"
+{
+  "issuer": "https://id.example.com",
+  "authorization_endpoint": "https://id.example.com/authorize",
+  "token_endpoint": "https://id.example.com/token",
+  "userinfo_endpoint": "https://id.example.com/userinfo",
+  "jwks_uri": "https://id.example.com/jwks.json",
+  "id_token_signing_alg_values_supported": ["RS256"],
+  "code_challenge_methods_supported": ["S256"],
+  "response_types_supported": ["code"]
+}
+```
+
+Three things this buys you in practice.
+
+Key rotation stops being an incident. `jwks_uri` gives you the current public keys, each with a `kid`. Your verifier matches the token header's `kid` against the cached key set and refetches when it sees an unknown one. The provider rotates signing keys and nothing on your side needs a deploy.
+
+Onboarding a second provider becomes configuration rather than code. You store an issuer URL, a client ID and a secret. Everything else is derived.
+
+You can check capabilities instead of assuming them. `code_challenge_methods_supported` tells you whether PKCE with S256 is available rather than you finding out from a runtime error. One caution: the `issuer` value inside the document must match the issuer you derived the well-known URL from, otherwise you have been handed metadata for somebody else's tenant.
+
+## state and nonce are not the same thing
+
+These get conflated constantly, and the fastest way to keep them apart is to notice that they protect different messages at different points in the flow.
+
+<Flow caption="Where the nonce lives" steps={[
+  { label: "Client generates nonce", note: "stored in the browser session", accent: "muted" },
+  { label: "Sent on /authorize", accent: "accent" },
+  { label: "IdP copies it into the ID token", accent: "signal" },
+  { label: "Client compares after signature check", note: "mismatch = reject", accent: "rose" }
+]} />
+
+| Parameter | Protects | Checked | Attack it stops |
+| --- | --- | --- | --- |
+| `state` | The authorization response (the redirect) | At the callback, before any token exists | Login CSRF — your browser being made to complete a login as the attacker's account |
+| `nonce` | The ID token | After signature and claim validation | Replay or injection of an ID token that was not issued for this login attempt |
+| PKCE `code_verifier` | The authorization code | At the token endpoint | Interception of the code by another app on the device |
+
+`state` is an OAuth 2.0 parameter. It is opaque to the authorization server, which simply echoes it back. You bind it to the browser session, compare it when the redirect lands, and drop the request if it does not match. It never appears inside any token.
+
+`nonce` is an OIDC parameter and it goes the other way — it travels into the provider and comes back *inside* the signed ID token. That is what binds the assertion to one specific authentication request from one specific browser session. Without it, an ID token captured somewhere else, for the same client, still verifies cleanly against issuer, audience and expiry. With it, the token is only acceptable to the single request that generated the value.
+
+## What validating an ID token actually involves
+
+Illustrative, but this is the shape of it:
+
+```js title="validate.js"
+async function validateIdToken(jwt, { issuer, clientId, expectedNonce }) {
+  const header = decodeHeader(jwt);
+  if (header.alg !== 'RS256') throw new Error('unexpected alg');
+
+  const key = await jwks.get(header.kid);      // cached, refetched on unknown kid
+  const claims = verifySignature(jwt, key);     // throws on bad signature
+
+  if (claims.iss !== issuer) throw new Error('bad issuer');
+  if (!audienceIncludes(claims.aud, clientId)) throw new Error('bad audience');
+  if (Array.isArray(claims.aud) && claims.azp === undefined) throw new Error('azp required for multi-audience token');
+  if (claims.azp !== undefined && claims.azp !== clientId) throw new Error('bad azp');
+
+  const now = Math.floor(Date.now() / 1000);
+  if (claims.exp <= now - SKEW) throw new Error('expired');
+  if (claims.iat > now + SKEW) throw new Error('issued in the future');
+  if (claims.nonce !== expectedNonce) throw new Error('nonce mismatch');
+
+  return claims;
+}
+```
+
+Pin the algorithm rather than trusting the header, otherwise the header is an attacker-controlled input that selects your verification strategy. Allow a small clock skew and no more. Treat every failure as a rejected login, not a warning.
+
+## The part that keeps biting people
+
+Once the ID token validates, it has done everything it will ever do. It is a statement about a past event: this subject authenticated at this issuer at this time. It is not a session, and its `exp` is not your session lifetime — the expiry exists to bound how long the assertion is acceptable for exchange, usually a few minutes. How long the user stays logged in to your application is your decision, tracked in your own session, and it is a policy question rather than a token question.
+
+Keep the three tokens in their lanes and most of the confusion disappears. The ID token tells your application who signed in. The access token lets your application call an API. Your session decides how long that continues to be true. OAuth 2.0 only ever promised the middle one.

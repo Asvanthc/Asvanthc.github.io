@@ -1,0 +1,309 @@
+---
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArchDiagram from '../../components/ArchDiagram.astro';
+import OidcFlow from '../../components/OidcFlow.astro';
+import PlatformMatrix from '../../components/PlatformMatrix.astro';
+import Icon from '../../components/Icon.astro';
+import { work } from '../../data/work';
+import { signageLayers, aiLayers, iamLayers } from '../../data/diagrams';
+
+export const getStaticPaths = (() =>
+  work
+    .filter((w) => w.status !== 'placeholder')
+    .map((w) => ({ params: { slug: w.slug }, props: { entry: w } }))) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+
+const diagrams = { signage: signageLayers, ai: aiLayers, oidc: iamLayers };
+const layers = entry.diagram ? diagrams[entry.diagram] : null;
+
+const diagramMeta = {
+  signage: {
+    title: 'How content reaches a display',
+    caption:
+      'Every arrow is a place where the two sides can disagree about state — which is where most of the interesting bugs live.',
+  },
+  oidc: {
+    title: 'Identity as a separate domain',
+    caption:
+      'The boundary in the middle is the point. Everything above it issues assertions; everything below it verifies them and decides what they permit.',
+  },
+  ai: {
+    title: 'A language model inside an ordinary system',
+    caption:
+      'The model is one component. Orchestration, validation and evaluation are still ordinary engineering.',
+  },
+} as const;
+---
+
+<BaseLayout title={entry.title} description={entry.tagline} type="article">
+  <article class="cs">
+    <header class="cs-head">
+      <div class="grid-bg"></div>
+      <div class="wrap cs-head-inner">
+        <a class="back" href="/#engineering">
+          <span class="back-arrow" aria-hidden="true">←</span> Selected work
+        </a>
+        <p class="eyebrow">{entry.category}</p>
+        <h1 class="cs-title">{entry.title}</h1>
+        <p class="cs-tagline">{entry.tagline}</p>
+
+        <ul class="cs-stack">
+          {entry.stack.map((s) => <li class="tag">{s}</li>)}
+        </ul>
+
+        {
+          entry.links && (
+            <div class="cs-links">
+              {entry.links.map((l) => (
+                <a class="btn btn-secondary" href={l.href} target="_blank" rel="noopener">
+                  {l.label} <Icon name="external" size={13} />
+                </a>
+              ))}
+            </div>
+          )
+        }
+      </div>
+    </header>
+
+    <div class="wrap cs-body">
+      <section class="cs-context">
+        <h2 class="cs-h2">Context</h2>
+        <p class="cs-lede">{entry.context}</p>
+        {
+          entry.kind === 'case-study' && (
+            <p class="cs-disclaimer">
+              Written at the level a public case study can go: the shape of the problems and how
+              I reasoned about them. No proprietary code, internal endpoints, schemas, customer
+              details or unreleased work appears here.
+            </p>
+          )
+        }
+      </section>
+
+      {
+        layers && entry.diagram && (
+          <section class="cs-diagram" data-reveal>
+            <ArchDiagram
+              id={`diagram-${entry.slug}`}
+              title={diagramMeta[entry.diagram].title}
+              caption={diagramMeta[entry.diagram].caption}
+              layers={layers}
+            />
+          </section>
+        )
+      }
+
+      {
+        entry.slug === 'identity-and-access' && (
+          <section class="cs-interactive" data-reveal>
+            <h2 class="cs-h2">The flow, step by step</h2>
+            <p class="cs-note">
+              This is the diagram I wish someone had shown me first. Open any step for the
+              reasoning behind it.
+            </p>
+            <OidcFlow />
+          </section>
+        )
+      }
+
+      {
+        entry.problems.length > 0 && (
+          <section class="cs-problems">
+            <h2 class="cs-h2">The engineering</h2>
+            <ol class="problems">
+              {entry.problems.map((p, i) => (
+                <li class="problem" data-reveal data-reveal-delay={i * 50}>
+                  <span class="problem-n" aria-hidden="true">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <div>
+                    <h3 class="problem-title">{p.title}</h3>
+                    <p class="problem-body">{p.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )
+      }
+
+      {
+        entry.slug === 'digital-signage-platform' && (
+          <section class="cs-matrix" data-reveal>
+            <h2 class="cs-h2">Three platforms, compared</h2>
+            <p class="cs-note">
+              Where the differences actually show up, and what each one costs in practice.
+            </p>
+            <PlatformMatrix />
+          </section>
+        )
+      }
+
+      <aside class="cs-cta">
+        <p>
+          I have written some of this up in more depth in my
+          <a class="link" href="/writing">engineering notes</a>.
+        </p>
+      </aside>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .cs-head {
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .cs-head-inner {
+    position: relative;
+    z-index: 1;
+    padding-block: clamp(2.5rem, 7vw, 4.5rem);
+  }
+
+  /* Block-level so the eyebrow below it starts on its own line. */
+  .back {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: var(--step--1);
+    color: var(--text-faint);
+    margin-bottom: 1.5rem;
+    transition: color var(--dur) var(--ease);
+  }
+
+  .back:hover { color: var(--accent); }
+  .back:hover .back-arrow { translate: -2px 0; }
+  .back-arrow { display: inline-block; transition: translate var(--dur) var(--ease); }
+
+  .cs-title {
+    font-size: var(--step-4);
+    letter-spacing: -0.03em;
+    max-width: 20ch;
+  }
+
+  .cs-tagline {
+    margin-top: 1.1rem;
+    color: var(--text-muted);
+    font-size: var(--step-1);
+    max-width: 62ch;
+    text-wrap: pretty;
+  }
+
+  .cs-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+    margin-top: 1.6rem;
+  }
+
+  .cs-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.4rem;
+  }
+
+  .cs-body {
+    padding-block: clamp(2.5rem, 6vw, 4rem) clamp(3.5rem, 8vw, 6rem);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(2.5rem, 6vw, 4rem);
+  }
+
+  .cs-h2 {
+    font-size: var(--step-2);
+    letter-spacing: -0.024em;
+    margin-bottom: 0.9rem;
+  }
+
+  .cs-lede {
+    font-size: var(--step-0);
+    color: var(--text-muted);
+    max-width: var(--measure);
+    line-height: 1.75;
+    text-wrap: pretty;
+  }
+
+  .cs-note {
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    max-width: 62ch;
+    margin-bottom: 1.4rem;
+  }
+
+  .cs-disclaimer {
+    margin-top: 1.25rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--text-faint);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--bg-subtle);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    max-width: 68ch;
+    line-height: 1.6;
+  }
+
+  .problems {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .problem {
+    display: flex;
+    gap: 1.1rem;
+    padding: 1.4rem clamp(1.1rem, 3vw, 1.6rem);
+    border-bottom: 1px solid var(--border);
+    transition: background var(--dur) var(--ease);
+  }
+
+  .problem:last-child { border-bottom: 0; }
+  .problem:hover { background: var(--surface-2); }
+
+  .problem-n {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--accent);
+    flex: none;
+    padding-top: 0.15rem;
+    opacity: 0.85;
+  }
+
+  .problem-title {
+    font-size: var(--step-1);
+    letter-spacing: -0.018em;
+  }
+
+  .problem-body {
+    margin-top: 0.6rem;
+    color: var(--text-muted);
+    font-size: var(--step--1);
+    line-height: 1.7;
+    max-width: 72ch;
+    text-wrap: pretty;
+  }
+
+  .cs-cta {
+    padding: 1.15rem 1.3rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-subtle);
+  }
+
+  .cs-cta p {
+    font-size: var(--step--1);
+    color: var(--text-muted);
+  }
+</style>

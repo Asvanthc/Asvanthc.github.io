@@ -1,0 +1,126 @@
+---
+/**
+ * Inline flow diagram for articles. Takes a compact step list and renders a
+ * responsive chain — horizontal when there is room, vertical on narrow screens.
+ *
+ * Usage in MDX:
+ *   <Flow caption="Token exchange" steps={[
+ *     { label: 'Browser', note: 'untrusted' },
+ *     { label: '/authorize', accent: 'accent' },
+ *     { label: 'Token endpoint', accent: 'signal' },
+ *   ]} />
+ */
+
+export type FlowStep = {
+  label: string;
+  note?: string;
+  accent?: 'accent' | 'signal' | 'amber' | 'rose' | 'muted';
+};
+
+interface Props {
+  steps: FlowStep[];
+  caption?: string;
+  /** Stack vertically at all widths — useful for long labels. */
+  vertical?: boolean;
+}
+
+const { steps, caption, vertical = false } = Astro.props;
+---
+
+<figure class:list={['flow', vertical && 'is-vertical']}>
+  <div class="flow-track" role="list">
+    {
+      steps.map((s, i) => (
+        <>
+          <div class={`flow-step accent-${s.accent ?? 'accent'}`} role="listitem">
+            <span class="flow-label">{s.label}</span>
+            {s.note && <span class="flow-note">{s.note}</span>}
+          </div>
+          {i < steps.length - 1 && (
+            <span class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 8" width="24" height="8" fill="none" preserveAspectRatio="none">
+                <path d="M0 4h20m0 0-4-3m4 3-4 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+          )}
+        </>
+      ))
+    }
+  </div>
+  {caption && <figcaption class="flow-caption">{caption}</figcaption>}
+</figure>
+
+<style>
+  .flow {
+    margin-block: 1.8em !important;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-subtle);
+    padding: 1.15rem;
+  }
+
+  .flow-track {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .flow-step {
+    --c: var(--accent);
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--c);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .accent-accent { --c: var(--accent); }
+  .accent-signal { --c: var(--signal); }
+  .accent-amber { --c: var(--amber); }
+  .accent-rose { --c: var(--rose); }
+  .accent-muted { --c: var(--text-faint); }
+
+  .flow-label {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .flow-note {
+    font-size: 0.66rem;
+    color: var(--text-faint);
+    line-height: 1.4;
+  }
+
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    color: var(--border-strong);
+    flex: none;
+  }
+
+  .flow-caption {
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    margin-top: 0.9rem;
+    text-align: left;
+  }
+
+  /* Vertical on narrow screens, or when asked for explicitly. */
+  @media (max-width: 680px) {
+    .flow-track { flex-direction: column; }
+    .flow-arrow { rotate: 90deg; align-self: flex-start; margin-left: 1rem; }
+  }
+
+  .is-vertical .flow-track { flex-direction: column; }
+  .is-vertical .flow-arrow { rotate: 90deg; align-self: flex-start; margin-left: 1rem; }
+</style>

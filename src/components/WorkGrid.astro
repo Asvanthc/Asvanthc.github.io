@@ -1,0 +1,139 @@
+---
+import Icon from './Icon.astro';
+import { work } from '../data/work';
+---
+
+<div class="work-grid">
+  {
+    work.map((w, i) => {
+      const isPlaceholder = w.status === 'placeholder';
+      const href = isPlaceholder ? undefined : `/engineering/${w.slug}/`;
+      const Tag = href ? 'a' : 'div';
+      return (
+        <Tag
+          class:list={['work-card', 'panel', href && 'panel-hover', isPlaceholder && 'is-placeholder']}
+          href={href}
+          data-reveal
+          data-reveal-delay={i * 60}
+        >
+          <div class="work-top">
+            <span class="work-cat">{w.category}</span>
+            {isPlaceholder ? (
+              <span class="work-flag">To be filled in</span>
+            ) : (
+              <span class="work-go" aria-hidden="true">
+                <Icon name="arrow" size={14} />
+              </span>
+            )}
+          </div>
+
+          <h3 class="work-title">{w.title}</h3>
+          <p class="work-tagline">{w.tagline}</p>
+
+          {w.stack.length > 0 && (
+            <ul class="work-stack">
+              {w.stack.slice(0, 5).map((s) => (
+                <li class="tag">{s}</li>
+              ))}
+              {w.stack.length > 5 && <li class="tag tag-more">+{w.stack.length - 5}</li>}
+            </ul>
+          )}
+        </Tag>
+      );
+    })
+  }
+</div>
+
+<style>
+  .work-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  }
+
+  @media (min-width: 900px) {
+    .work-grid { grid-template-columns: repeat(6, 1fr); }
+    .work-card { grid-column: span 2; }
+    /* The two case studies lead. */
+    .work-card:nth-child(1),
+    .work-card:nth-child(2) { grid-column: span 3; }
+  }
+
+  .work-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.3rem;
+    min-height: 200px;
+  }
+
+  .work-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .work-cat {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .work-go {
+    color: var(--text-faint);
+    display: flex;
+    transition: color var(--dur) var(--ease), translate var(--dur) var(--ease);
+  }
+
+  .work-card:hover .work-go {
+    color: var(--accent);
+    translate: 3px 0;
+  }
+
+  .work-title {
+    font-size: var(--step-1);
+    letter-spacing: -0.02em;
+  }
+
+  .work-tagline {
+    color: var(--text-muted);
+    font-size: var(--step--1);
+    margin-top: 0.5rem;
+    line-height: 1.6;
+    flex: 1;
+  }
+
+  .work-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    list-style: none;
+    margin-top: 1.2rem;
+  }
+
+  .tag-more { color: var(--text-faint); }
+
+  /* --- Placeholder treatment: honest, not disguised --- */
+  .is-placeholder {
+    border-style: dashed;
+    background: transparent;
+  }
+
+  .is-placeholder .work-title,
+  .is-placeholder .work-cat { color: var(--text-muted); }
+
+  .is-placeholder .work-tagline { color: var(--text-faint); }
+
+  .work-flag {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+</style>

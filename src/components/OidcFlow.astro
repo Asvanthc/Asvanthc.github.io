@@ -1,0 +1,495 @@
+---
+/**
+ * Interactive Authorization Code + PKCE sequence diagram.
+ *
+ * The teaching point the layout is built around: which messages travel through the
+ * browser (front channel — visible in the URL bar, history and referer) and which
+ * travel directly between the application and the identity provider (back channel —
+ * an attacker with the browser cannot observe them). Tokens only ever move on the
+ * back channel, and every design decision in the flow follows from that.
+ */
+
+const actors = [
+  { id: 'user', label: 'User', sub: 'the human' },
+  { id: 'browser', label: 'Browser', sub: 'untrusted channel' },
+  { id: 'app', label: 'Application', sub: 'the client' },
+  { id: 'idp', label: 'Identity provider', sub: 'authorization server' },
+];
+
+type Step = {
+  from: number;
+  to: number;
+  channel: 'front' | 'back' | 'local';
+  label: string;
+  detail: string;
+  why: string;
+};
+
+const steps: Step[] = [
+  {
+    from: 0,
+    to: 1,
+    channel: 'local',
+    label: 'Clicks “Sign in”',
+    detail: 'The user asks for a protected page, or presses the login button.',
+    why: 'Nothing security-relevant has happened yet. Worth stating, because the flow is often explained as if it starts at the identity provider — it does not.',
+  },
+  {
+    from: 1,
+    to: 2,
+    channel: 'front',
+    label: 'GET /login',
+    detail: 'The browser hits the application’s login route.',
+    why: 'The application is about to make two decisions: where to send the user, and what secret to bind this particular login attempt to.',
+  },
+  {
+    from: 2,
+    to: 2,
+    channel: 'local',
+    label: 'Generate code_verifier, state, nonce',
+    detail: 'A random verifier is created and hashed (S256) into a code_challenge. A state and a nonce are generated and stored against the session.',
+    why: 'The verifier is the secret PKCE is built on — it never leaves the application until the final token call. state defends against login CSRF; nonce binds the eventual ID token back to this request.',
+  },
+  {
+    from: 2,
+    to: 1,
+    channel: 'front',
+    label: '302 → /authorize?…',
+    detail: 'A redirect carrying client_id, redirect_uri, scope, state, nonce and code_challenge.',
+    why: 'This is the step people find surprising: the authorization server cannot “open a page” for the user. It has no channel to the browser. The only thing the application can do is reply with a 302 and let the browser choose to follow it.',
+  },
+  {
+    from: 1,
+    to: 3,
+    channel: 'front',
+    label: 'GET /authorize',
+    detail: 'The browser follows the redirect. The URL bar now shows the identity provider’s domain.',
+    why: 'The domain change is the point. The user is typing their password into the identity provider, not into the application — so the application never sees the credential at all.',
+  },
+  {
+    from: 0,
+    to: 3,
+    channel: 'local',
+    label: 'Authenticates',
+    detail: 'Password, MFA, an existing session, or consent for the requested scopes.',
+    why: 'If a session already exists here, the user sees nothing and is redirected straight back. That silent case is exactly what single sign-on is.',
+  },
+  {
+    from: 3,
+    to: 1,
+    channel: 'front',
+    label: '302 → /callback?code=…&state=…',
+    detail: 'A short-lived, single-use authorization code, plus the state that was sent out.',
+    why: 'The code travels through the browser, so assume it is observable — in history, in logs, in a referer header. That is precisely why it is not a token, is single-use, and expires in about a minute.',
+  },
+  {
+    from: 1,
+    to: 2,
+    channel: 'front',
+    label: 'GET /callback',
+    detail: 'The application receives the code and compares state against what it stored.',
+    why: 'A state mismatch means this callback did not originate from a login this session started — that is login CSRF, and the request has to be rejected before the code is used.',
+  },
+  {
+    from: 2,
+    to: 3,
+    channel: 'back',
+    label: 'POST /token',
+    detail: 'code + code_verifier + client authentication, sent directly, server to server.',
+    why: 'The back channel. An attacker who stole the code from the browser cannot complete this call: they would also need the code_verifier, which never travelled through the browser. This is the whole of PKCE.',
+  },
+  {
+    from: 3,
+    to: 2,
+    channel: 'back',
+    label: 'access_token, id_token, refresh_token',
+    detail: 'The identity provider hashes the presented verifier and compares it with the stored challenge before issuing anything.',
+    why: 'Three tokens with three jobs: the access token authorizes API calls, the ID token states who signed in, and the refresh token buys a new access token without sending the user through login again.',
+  },
+  {
+    from: 2,
+    to: 3,
+    channel: 'back',
+    label: 'GET /.well-known/jwks.json',
+    detail: 'Fetch the public signing keys, selected by the kid in the token header. Cached, and refetched on an unknown kid.',
+    why: 'Public key distribution is what makes key rotation possible without redeploying every service. RS256 is asymmetric: the identity provider signs with a private key nobody else holds, and anyone can verify.',
+  },
+  {
+    from: 2,
+    to: 2,
+    channel: 'local',
+    label: 'Verify: signature, iss, aud, exp, nonce',
+    detail: 'Check the signature against the JWKS key, then the claims that scope the token.',
+    why: 'A valid signature only proves the identity provider issued this token — not that it was issued for you. A token minted for a different audience will verify cryptographically and must still be rejected.',
+  },
+  {
+    from: 2,
+    to: 1,
+    channel: 'front',
+    label: 'Set session cookie, 302 → app',
+    detail: 'The application establishes its own session and sends the user where they were going.',
+    why: 'Login is finished, and the browser still holds no token — only a session cookie. Keeping tokens server-side is what stops a cross-site scripting bug from becoming a token theft.',
+  },
+];
+
+const channelMeta = {
+  front: { label: 'Front channel', note: 'via the browser — treat as observable' },
+  back: { label: 'Back channel', note: 'direct server-to-server — not observable by the browser' },
+  local: { label: 'Local', note: 'happens inside one participant' },
+};
+---
+
+<div class="oidc" data-oidc>
+  <div class="oidc-head">
+    <div>
+      <h3 class="oidc-title">Authorization Code flow with PKCE</h3>
+      <p class="oidc-sub">
+        Step through it. The colour tells you whether a message can be seen by an attacker who
+        controls the browser.
+      </p>
+    </div>
+    <div class="legend">
+      {
+        (['front', 'back', 'local'] as const).map((c) => (
+          <span class={`legend-item legend-${c}`}>
+            <span class="legend-swatch" aria-hidden="true" />
+            {channelMeta[c].label}
+          </span>
+        ))
+      }
+    </div>
+  </div>
+
+  <!-- Actor columns (desktop) -->
+  <div class="actors" aria-hidden="true">
+    {
+      actors.map((a) => (
+        <div class="actor">
+          <span class="actor-label">{a.label}</span>
+          <span class="actor-sub">{a.sub}</span>
+          <span class="actor-line" />
+        </div>
+      ))
+    }
+  </div>
+
+  <ol class="steps">
+    {
+      steps.map((s, i) => {
+        const lo = Math.min(s.from, s.to);
+        const hi = Math.max(s.from, s.to);
+        const self = s.from === s.to;
+        return (
+          <li class="step" data-step={i} data-channel={s.channel} data-self={self ? '' : undefined}>
+            <button class="step-btn" type="button" aria-expanded="false" aria-controls={`oidc-why-${i}`}>
+              <span class="step-n">{String(i + 1).padStart(2, '0')}</span>
+              <span
+                class="step-arrow"
+                style={`--lo:${lo}; --hi:${hi}; --to:${s.to}; --dir:${s.to >= s.from ? 1 : -1}`}
+                aria-hidden="true"
+              >
+                <span class="arrow-line" />
+                {!self && <span class="arrow-head" />}
+              </span>
+              <span class="step-text">
+                <span class="step-label">{s.label}</span>
+                <span class="step-route">
+                  {actors[s.from].label}
+                  {!self && <> → {actors[s.to].label}</>}
+                </span>
+                <span class="step-detail">{s.detail}</span>
+              </span>
+              <span class="step-chevron" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="m3.5 5 2.5 2.5L8.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+            </button>
+            <div class="step-why" id={`oidc-why-${i}`} hidden>
+              <p>{s.why}</p>
+              <p class="channel-note">
+                <strong>{channelMeta[s.channel].label}:</strong> {channelMeta[s.channel].note}
+              </p>
+            </div>
+          </li>
+        );
+      })
+    }
+  </ol>
+</div>
+
+<style>
+  .oidc {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    overflow: hidden;
+    --col-front: var(--accent);
+    --col-back: var(--signal);
+    --col-local: var(--text-faint);
+  }
+
+  .oidc-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 1.25rem clamp(1rem, 3vw, 1.6rem);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+  }
+
+  .oidc-title {
+    font-size: var(--step-1);
+  }
+
+  .oidc-sub {
+    color: var(--text-muted);
+    font-size: var(--step--1);
+    margin-top: 0.35rem;
+    max-width: 52ch;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.9rem;
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-muted);
+  }
+
+  .legend-swatch {
+    width: 16px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .legend-front .legend-swatch { background: var(--col-front); }
+  .legend-back .legend-swatch { background: var(--col-back); }
+  .legend-local .legend-swatch { background: var(--col-local); }
+
+  /* --- Actor header --- */
+  .actors {
+    display: grid;
+    grid-template-columns: 3rem repeat(4, 1fr);
+    padding: 1rem clamp(1rem, 3vw, 1.6rem) 0;
+    gap: 0;
+  }
+
+  .actor {
+    grid-column: span 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+  }
+
+  .actor:first-child { grid-column: 2; }
+
+  .actor-label {
+    font-size: var(--step--1);
+    font-weight: 560;
+    letter-spacing: -0.01em;
+  }
+
+  .actor-sub {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    color: var(--text-faint);
+    margin-top: 0.1rem;
+  }
+
+  .actor-line {
+    width: 1px;
+    height: 0.75rem;
+    background: var(--border-strong);
+    margin-top: 0.5rem;
+  }
+
+  /* --- Steps --- */
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0 clamp(1rem, 3vw, 1.6rem) 1.25rem;
+    counter-reset: step;
+  }
+
+  .step {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .step:last-child { border-bottom: 0; }
+
+  .step-btn {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 4fr) minmax(0, 5fr) 1.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: none;
+    border: 0;
+    padding: 0.7rem 0;
+    text-align: left;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background var(--dur) var(--ease);
+  }
+
+  .step-btn:hover {
+    background: var(--surface-2);
+  }
+
+  .step-n {
+    font-family: var(--font-mono);
+    font-size: var(--step--2);
+    color: var(--text-faint);
+    text-align: center;
+  }
+
+  /* The arrow spans the actor columns it connects. */
+  .step-arrow {
+    position: relative;
+    height: 22px;
+    display: block;
+  }
+
+  /*
+   * Actor lanes sit at the centre of 4 equal columns, i.e. at 12.5%, 37.5%,
+   * 62.5% and 87.5%. --lane() maps an actor index onto that position.
+   */
+  .arrow-line {
+    position: absolute;
+    top: 50%;
+    left: calc(12.5% + var(--lo) * 25%);
+    width: calc((var(--hi) - var(--lo)) * 25%);
+    height: 2px;
+    translate: 0 -50%;
+    border-radius: 2px;
+    background: var(--step-color);
+    opacity: 0.85;
+  }
+
+  /* A right-pointing triangle, flipped through scale when the message goes left. */
+  .arrow-head {
+    position: absolute;
+    top: 50%;
+    left: calc(12.5% + var(--to) * 25%);
+    translate: -50% -50%;
+    width: 0;
+    height: 0;
+    border-block: 4px solid transparent;
+    border-left: 6px solid var(--step-color);
+    scale: var(--dir) 1;
+  }
+
+  .step[data-channel='front'] { --step-color: var(--col-front); }
+  .step[data-channel='back'] { --step-color: var(--col-back); }
+  .step[data-channel='local'] { --step-color: var(--col-local); }
+
+  .step[data-self] .arrow-line {
+    width: 14px;
+    border-radius: 99px;
+    border: 2px solid var(--step-color);
+    background: transparent;
+    height: 14px;
+  }
+
+  .step-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .step-label {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .step-route {
+    font-size: var(--step--2);
+    color: var(--step-color);
+    margin-top: 0.1rem;
+  }
+
+  .step-detail {
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    line-height: 1.5;
+  }
+
+  .step-chevron {
+    color: var(--text-faint);
+    display: flex;
+    justify-content: center;
+    transition: rotate var(--dur) var(--ease);
+  }
+
+  .step-btn[aria-expanded='true'] .step-chevron {
+    rotate: 180deg;
+    color: var(--accent);
+  }
+
+  .step-why {
+    padding: 0 0 1rem 3rem;
+    max-width: 68ch;
+  }
+
+  .step-why p {
+    font-size: var(--step--1);
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+
+  .channel-note {
+    margin-top: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border-left: 2px solid var(--step-color);
+    background: var(--surface-2);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-family: var(--font-mono);
+    font-size: var(--step--2) !important;
+  }
+
+  .channel-note strong { color: var(--step-color); }
+
+  /* --- Mobile: drop the actor lanes, keep the sequence --- */
+  @media (max-width: 760px) {
+    .actors { display: none; }
+
+    .step-btn {
+      grid-template-columns: 2.2rem minmax(0, 1fr) 1.2rem;
+      gap: 0.4rem;
+    }
+
+    .step-arrow { display: none; }
+
+    .step-why { padding-left: 2.6rem; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-oidc]').forEach((root) => {
+    const buttons = root.querySelectorAll<HTMLButtonElement>('.step-btn');
+    buttons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const panel = document.getElementById(btn.getAttribute('aria-controls')!);
+        if (!panel) return;
+        const open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', String(!open));
+        panel.hidden = open;
+      });
+    });
+  });
+</script>

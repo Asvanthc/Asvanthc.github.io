@@ -1,0 +1,183 @@
+---
+title: "Building one application across Samsung Tizen, LG webOS and Android"
+description: "What changes when the browser is welded to firmware, the device is in a shop you cannot visit, and the vendor API has no common shape."
+summary: "Signage players are web apps running on embedded browsers you cannot update, on hardware you cannot reach. The differences between vendors are not edge cases — they are the shape of the problem."
+date: 2025-11-09
+tags: ["Devices", "Tizen", "webOS", "Android"]
+featured: false
+---
+
+A clip plays correctly on one screen and shows a black frame on the panel next to it. Same media file, same schedule, same player build. The only difference is that the two panels are on different firmware, and one of them shipped with a browser engine a few years older than the other.
+
+That is the ordinary texture of signage work. I joined Zeetaminds in August 2024 on the CMS side — Java, Play Framework, MyBatis on the server, Angular in the web client. The device side pulled me in because that is where the assumptions break. A signage player is a web application: HTML, CSS, JavaScript, a video element, a scheduler. But it runs inside a browser welded to the firmware of a commercial display, in a shop or a lobby or a campus corridor, and it is expected to keep going for months without anyone touching it.
+
+The thesis I have landed on, after a year of this: you are writing for the web as it was several years ago, on hardware you cannot reach, against a vendor API surface that has no common shape. Treating that as a design input rather than an obstacle is most of what makes the work tractable.
+
+## The browser version is a property of the hardware
+
+On the open web, the browser updates itself. You write to a baseline, check caniuse, and the long tail shrinks on its own because Chrome and Safari push updates to users who did nothing.
+
+None of that applies here. The engine inside a Samsung SSSP panel or an LG webOS Signage panel is part of the firmware image. It changes when the firmware changes, and firmware changes when someone updates the panel deliberately — which, for a screen bolted above a shop counter, may be never. A panel bought three years ago runs the engine it was manufactured with.
+
+So a fleet is never "one browser". It is a distribution of engine versions across model years, and that distribution is not really under anyone's control. The player has to run on all of it from a single build, because you cannot ask a venue to identify its firmware before you deploy.
+
+Android is the same problem in a different shape. The app is usually a native shell around a WebView, so the engine is Android System WebView — which updates independently of the OS on a device with Play Services, and does not update at all on an AOSP build without them. Two Android devices on the same OS version can have web engines years apart.
+
+<Callout type="wrong" title="What I originally assumed">
+I assumed "Tizen and webOS are both Chromium-based, so I can treat them as one target with a couple of shims." Engine family tells you almost nothing. What matters is the engine *version*, and the version is bound to firmware, so the same vendor gives you several different targets at once. The vendor boundary is not the interesting boundary. The firmware generation is.
+</Callout>
+
+## What actually differs
+
+Three things differ in ways you have to plan for: the engine, the device API, and the media pipeline. Everything else is mostly the same web app.
+
+| Aspect | Samsung Tizen (SSSP) | LG webOS Signage | Android signage |
+|---|---|---|---|
+| Web engine | Bound to firmware; older generations are WebKit-based, newer ones Chromium-based | Chromium-based, version pinned per webOS generation | System WebView; updatable only if the build ships Play Services |
+| How the app loads | Packaged or hosted HTML app, run by the built-in player | Same idea, launched by the signage platform | Native shell hosting a WebView, or a kiosk browser |
+| Device APIs | Vendor B2B JavaScript APIs injected into the page | Injected JS APIs plus a local service endpoint | Native APIs, exposed to JS through a bridge you write |
+| Media decode | Hardware decoder; profile and level limits vary by model year | Same, different set of limits | Depends on the SoC in the box |
+| Debugging | Remote web inspector, when the device allows it | Web inspector through developer mode | `chrome://inspect` over ADB, plus logcat |
+| Media storage | Platform-provided local area | Platform-provided local area | Normal app file storage |
+
+The device APIs are the part with no polyfill. Setting a power schedule, forcing a reboot, capturing what is currently on screen, reading serial number or firmware version — these are genuinely vendor-specific. There is no standard because there is no web standard for "turn this commercial display off at 22:00". Each vendor invented its own, with its own naming, its own async convention and its own error behaviour.
+
+Media is the third axis, and the one that produces the black frame I opened with. Support is whatever the hardware decoder does: H.264 profile and level caps, resolution and bitrate ceilings, HEVC on some model years and not others, and a small limit on concurrent decode sessions. `canPlayType` answers from a static table rather than from the decoder, so it will say `probably` for a file that renders as a black rectangle at that bitrate. Normalising media to a conservative profile server-side is less work than making every panel agree.
+
+## Why user-agent sniffing fails, and what replaces it
+
+The obvious move is to read the user-agent string, decide which platform you are on, and branch. It does not survive contact with a fleet.
+
+Signage UA strings are inconsistent between model years from the same vendor. Tokens get added, removed or reordered by firmware. Some devices identify themselves with a generic browser string that tells you nothing about the panel. Some Android shells let integrators override the UA entirely, so what you receive is whatever the person configuring the kiosk typed. And the string changes on firmware update, which means a device that worked yesterday can fall down a different branch today with no deploy on your side.
+
+The failure mode is quiet and bad. Your regex misses, you fall through to a default branch, and a screen in a venue you cannot visit shows nothing. Nobody sees a stack trace.
+
+<Callout type="gotcha">
+UA sniffing on signage does not fail loudly at build time. It fails months later, on one model, after a firmware rollout you were not told about. Treat any `navigator.userAgent` match in device code as a bug waiting for a schedule.
+</Callout>
+
+### Feature detection for the engine
+
+For web platform features, feature detection is straightforward and correct. Ask whether the thing exists before using it, and have a path for when it does not.
+
+```js title="capability-probe.js"
+const caps = {
+  fetch: typeof fetch === 'function',
+  promise: typeof Promise === 'function',
+  intl: typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat === 'function',
+  objectFit: 'objectFit' in document.documentElement.style,
+  // '', 'maybe' or 'probably' — a hint, not an answer. Keep the raw string.
+  hevc: canDecode('video/mp4; codecs="hev1.1.6.L93.B0"'),
+};
+
+function canDecode(type) {
+  const v = document.createElement('video');
+  return v.canPlayType(type); // '' | 'maybe' | 'probably'
+}
+```
+
+Keep the raw string and decide at the call site, because none of the three values is trustworthy on its own. `probably` is the value that black-frames on a 4K high-bitrate file, and on older embedded WebKit builds `''` sometimes comes back for codecs the panel decodes fine. Where it exists, `navigator.mediaCapabilities.decodingInfo()` is the only API that takes resolution, bitrate and framerate into account, so it is worth preferring when present — but on the firmware generations that actually need the check, it usually is not. Confirm on the device.
+
+### Why that stops working at the vendor API
+
+That handles the engine. It does not handle vendor device APIs, and this is where the advice to "just feature-detect" runs out. You cannot feature-detect your way to a power-off call that does not exist on the platform you are running on.
+
+Asking whether a specific vendor global is present is not really feature detection — it *is* platform detection, done by probing the environment instead of parsing a string. That is fine, as long as you are honest about it. Unlike a UA regex, it tests the exact thing you are about to call.
+
+The rule: feature-detect web features, probe for vendor globals, and put every vendor call behind one small interface.
+
+## A thin platform layer, with one implementation per vendor
+
+The interface should be small and boring. Every method you add is a method three implementations must support, and the one you cannot implement on some platform becomes a permanent special case in calling code.
+
+```js title="platform.js"
+// One shared shape. Every implementation returns the same thing.
+const base = {
+  name: 'generic',
+  async info() { return { model: null, serial: null, firmware: null }; },
+  async setPower(on) { return false; },      // false = unsupported, caller decides
+  async reboot() { return false; },
+  async capture() { return null; },          // data URL or null
+};
+
+const tizen = { ...base, name: 'tizen',
+  async info() { const a = window.b2bapis.b2bcontrol; return read(a); },
+  async setPower(on) { return call(window.b2bapis.b2bcontrol, on); },
+};
+
+const webos = { ...base, name: 'webos', /* different names, same contract */ };
+const android = { ...base, name: 'android', /* calls into the JS bridge */ };
+
+export const platform =
+  has('b2bapis') ? tizen :
+  has('webOS') ? webos :
+  has('AndroidBridge') ? android : base;
+
+function has(k) { return typeof window[k] === 'object' && window[k] !== null; }
+```
+
+Two details matter more than the structure. The fallback is a real object, not `null` — unsupported returns a value the caller can branch on, so the player never crashes on a panel nobody anticipated. And everything is async even where a vendor call is synchronous, because one of the three will be async and the contract should not change per platform.
+
+<Flow caption="Where the platform decision happens: once, at boot, before anything else runs" steps={[
+  { label: "Player boots", note: "no vendor calls yet", accent: "muted" },
+  { label: "Probe globals", note: "not the UA string", accent: "accent" },
+  { label: "Bind implementation", note: "or fall back to base", accent: "signal" },
+  { label: "Scheduler + playback", note: "vendor-agnostic from here", accent: "accent" },
+]} />
+
+Everything above the layer — scheduling, layouts, playlist logic — should never know which vendor it is on. When that leaks, it leaks through small things: a timing hack for one panel, a workaround for one firmware's video element. Those belong inside the implementation.
+
+## Target the oldest firmware you support
+
+The practical baseline is not "what do most devices support". It is "what does the oldest firmware in the field support", because the oldest device gets the same bundle as the newest.
+
+In practice that means transpiling further down than feels necessary and shipping polyfills you personally never need. Async/await, object spread, `Promise`, `fetch`, `Object.assign`, `Array.prototype.includes`, `Intl` for timezone-aware scheduling — any of these can be missing. CSS has the same problem: `objectFit` for letterboxing, flex bugs in older engines, transform-based rotation for portrait panels behaving differently across generations.
+
+The cost is real. Bundles get bigger and the code you write is not the code that runs. That is the trade, and it is not close: a smaller bundle that fails on the oldest panel in the fleet is not smaller, it is broken.
+
+<Callout type="key">
+Compatibility here is a constraint, not an annoyance. You cannot fix the browser, force firmware updates, or see the device. So the browser version becomes an input to the design, the same way memory limits are an input on embedded systems. Once you treat it that way, the decisions — small interface, hard baseline, defensive defaults — stop being debates and become consequences.
+</Callout>
+
+## The player runs for months, not minutes
+
+Desktop web apps are forgiven a lot because someone reloads the tab. A signage player does not get reloaded. It comes up when the panel powers on and runs until it does not.
+
+### Leaks that are invisible on a desktop are fatal here
+
+A listener attached per media item and never removed. A `setInterval` created on each playlist cycle. A detached DOM node held by a closure. A growing array of "recent" anything. In a twenty-minute desktop session, none of these are visible. Over weeks on a panel with modest memory, they end in a frozen screen or a browser the firmware silently restarts.
+
+The habits that help are unglamorous: every `addEventListener` has a matching removal, every timer has an owner that clears it, media elements get their `src` cleared when a slide ends, and anything that accumulates has a bound. Long soak tests on a real device tell you more than reasoning about the code does.
+
+### The network is whatever the venue has
+
+Retail Wi-Fi, a shared line, a mobile router, a switch someone unplugs to vacuum. The player cannot stream on demand and hope. Media is downloaded and cached locally, and playback runs from local files. The network is for schedules, new media and status reporting — and the player must keep showing correct content when it is gone.
+
+<Flow caption="Playback never depends on the network being up at the moment of play" steps={[
+  { label: "Schedule fetched", note: "when online", accent: "accent" },
+  { label: "Media downloaded", note: "verified, then committed", accent: "signal" },
+  { label: "Local cache", note: "source of truth for playback", accent: "amber" },
+  { label: "Play from disk", note: "offline is the normal case", accent: "accent" },
+]} />
+
+An interrupted download must never become a playable file. Write to a temporary name, verify, then make it visible to the scheduler. Half a video that plays for two seconds and stops is worse than a file that is not there yet, because "not there yet" is a case the scheduler already handles.
+
+### Reboots erase in-memory state
+
+Panels are usually on a power schedule, and many deployments reboot nightly on purpose because it clears whatever has gone wrong. That is a reasonable operational choice, and it means anything held only in memory is gone every day. Playback position, retry counters, what has already been reported — if it matters after a reboot it has to be persisted, and the persisted form has to survive being written to during an abrupt power cut.
+
+## Debugging a screen you cannot reach
+
+When a device is on a desk, you have tools. Tizen and webOS both expose a remote web inspector when the device is in developer mode, and on Android you get `chrome://inspect` over ADB plus logcat from the shell. On a bench this is close to normal web debugging.
+
+On a panel in a shop, none of it is available. Developer mode may be off, the device may be behind a network you cannot enter, and by the time anyone reports the problem the moment has passed. Your only instrument is what the player recorded before it failed and managed to send.
+
+Which makes logging a design decision, not a habit. Capture what you cannot reconstruct afterwards: which platform implementation was selected at boot, the engine and firmware identifiers the device reported, which media file was playing when things went wrong, and whether a decode error or a fetch failure preceded it. Logs buffer locally and flush when the network returns — same discipline as media, opposite direction.
+
+The question I now ask before shipping a device change is: if this fails at 3 a.m. on one panel in one venue, what will I have? If the answer is "a photo from a customer", the change is not finished.
+
+## What this actually changes
+
+None of this is exotic. It is the same engineering you would do for any embedded target: pick a hard baseline, keep the vendor surface small and explicit, assume the network is absent, assume the process lives forever, and instrument for the failure you will not be present for.
+
+What took me longest to accept is that the old browser is not a problem to be solved. It is the environment. Once that stops feeling like a constraint on the design and starts being the design, the vendor differences shrink to what they are: three implementations of a small interface, chosen once at boot.

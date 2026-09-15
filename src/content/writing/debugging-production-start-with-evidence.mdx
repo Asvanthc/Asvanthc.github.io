@@ -1,0 +1,153 @@
+---
+title: "Debugging production: start with evidence"
+description: "A procedure for debugging production systems, where the expensive failure mode is not being wrong but being confident and wrong before you have gathered anything."
+summary: "Most bad production fixes begin with a hypothesis nobody tried to falsify. This is the order I work in instead: establish what is actually true, find the failure boundary, then change code."
+date: 2026-01-18
+tags: ["Debugging", "Production", "Observability"]
+featured: false
+---
+
+Being wrong about a production bug is cheap. You look, you find out, you move on. Being *confident* and wrong is what costs a week. You read the ticket, something in the code jumps out at you, it looks exactly like the kind of thing that would produce this symptom, and you change it. The symptom goes away for a day. It comes back. Now you have the original bug plus a change in the codebase that nobody can justify, because the justification was a hunch you never wrote down.
+
+I work on a digital signage platform at Zeetaminds. A CMS schedules media, and player applications running on Samsung Tizen, LG webOS and Android devices pull it down and put it on a screen. That split matters here. One half is a backend I can attach a debugger to. The other half is a device sitting in a shop somewhere that I will never touch, whose logs I only get if I thought to write them before the deploy. Debugging across that boundary taught me that guessing is expensive.
+
+What follows is a procedure. Not a clever one. The value is in doing the steps in order and not skipping to the last.
+
+## "It is broken" is not a bug report
+
+The first job is not to explain the failure. It is to describe it precisely enough that an explanation becomes possible.
+
+Three questions, in this order.
+
+**What exactly is the failure?** Not "the content is wrong". Which content, where, versus what was expected? A screen showing yesterday's playlist is a different bug from a screen showing nothing, which is a different bug again from a screen showing the right playlist in the wrong order. These have almost nothing in common mechanically, and the words people use for them are identical.
+
+**What is the blast radius?** One device or every device? One account or every account? One device model or all models? This question does more work than any other, because it tells you which layer can possibly be responsible. A fault that hits one account and no others cannot live in code that runs identically for everyone — it lives in that account's data, its configuration, or its timezone. A fault that hits every device of one model and no others is not in your scheduling logic. It is in the platform layer under it.
+
+**When did it start?** "It has always been like this" and "it started Tuesday" send you to different places. If it started Tuesday, ask what shipped Monday — yours or anyone's. Certificates expire. Upstream APIs change defaults. A device auto-updates its firmware overnight and nobody tells you.
+
+<Callout type="key">
+Every one of these questions is a filter on the search space, and you can ask all three before reading a single line of code. Reading code first feels productive and usually is not — you are pattern-matching against a symptom you have not defined yet.
+</Callout>
+
+## Bisect the system, not the code
+
+Once you know what broke and roughly for whom, stop thinking in functions and start thinking in hops. A request crosses a set of boundaries. Each boundary is a yes/no question, and each answer deletes half the system from consideration.
+
+<Flow caption="Each hop is a question with a yes/no answer. Ask them in order, and never assume an earlier one." steps={[{ label: "Player", note: "device in the field", accent: "muted" }, { label: "Proxy / TLS", note: "did the request arrive", accent: "amber" }, { label: "Application", note: "did a handler run", accent: "accent" }, { label: "Database", note: "did the query execute", accent: "signal" }, { label: "Response", note: "what actually left", accent: "rose" }]} />
+
+The questions are boring on purpose.
+
+| Question | Where you look | What a "no" rules out |
+| --- | --- | --- |
+| Did the request arrive at all? | Access logs at the edge | Everything behind the edge. It is network, DNS, TLS or the client |
+| Did it reach the handler? | Application log at entry | The handler and everything below it. It is routing, auth, request parsing or a body size limit |
+| Did the handler query the database? | Query log or a log line around the call | Everything below the service layer |
+| Did the query return rows? | The count, logged | The data is missing, not the logic |
+| Did a response leave, and what was in it? | Response log or status code | Rendering and client-side handling |
+
+The mistake I still catch myself making is starting in the middle. I am sure the problem is in the scheduling logic, so I go read the scheduling logic, and I spend an hour there before discovering the request never arrived at all. An hour spent on code that was never executed.
+
+Bisecting from the outside in feels slower. It is not, because a wrong guess costs more than a cheap check.
+
+<Callout type="wrong" title="What I originally believed">
+Early on I believed that when a screen shows stale content, the device did not receive the update. It is the obvious explanation, it is right often enough to be dangerous, and it sends you straight to the delivery path.
+
+But "did not receive" and "received, stored, did not act on it" produce an identical symptom from the outside. So do "acted on it and failed silently" and "acted on it, then reverted". The obvious explanation is not wrong because it is obvious. It is dangerous because its obviousness makes you skip the check that would separate it from three siblings that look identical on a screen and are completely different in code.
+</Callout>
+
+## Reproduce, or find the variable you wrote off
+
+If you can reproduce it, you have converted a production mystery into a local one, and the rest is routine.
+
+If you cannot reproduce it, that is not a dead end. It is information. An unreproducible bug is telling you that some variable you consider irrelevant is not irrelevant. Your environment differs from the broken one in some way you have not written down, and the bug lives in that difference.
+
+So write the differences down. In my world the usual suspects are device model, firmware version, screen orientation and resolution, timezone, locale and date formatting, network conditions, storage that is nearly full, and whether a cache is cold or warm. Locale is a repeat offender across the whole industry — string comparison, number parsing and date formatting all quietly change behaviour based on it, and your machine is never configured like the one in the field.
+
+Cold versus warm is the one I underrate most. Half of what I fail to reproduce locally is because my second run is not my first run. The bug only exists on the first execution, and I never do a first execution.
+
+## A hypothesis has to make a prediction
+
+This is the step people skip, and it is the one that separates debugging from guessing.
+
+A hypothesis is not "I think it is the cache". That is a suspicion. A hypothesis is a claim specific enough to be wrong, and the way you make it specific is by asking one question before you touch anything:
+
+> If I am right, what should I see? And if I am wrong, what would I see instead?
+
+If both answers are the same, your hypothesis predicts nothing and you cannot learn from checking it.
+
+<Flow caption="The loop. A hypothesis that survives no check is not evidence, it is still a preference." steps={[{ label: "Observation", accent: "muted" }, { label: "Prediction", note: "what must also be true", accent: "accent" }, { label: "Check", note: "cheapest one first", accent: "signal" }, { label: "Keep or discard", accent: "amber" }]} />
+
+Concretely: "the device is using a stale cached response" predicts more than itself. It predicts a request going out and coming back unchanged. It predicts a stored timestamp older than the last publish. It predicts that clearing storage fixes it exactly once. Three cheap checks, and any one of them coming back wrong kills the hypothesis before you write code.
+
+The discipline is to look for the observation that would *destroy* your idea, not the one that would confirm it. Confirming evidence is easy to find for almost any theory. That is what makes it worth so little.
+
+## Then, and only then, change the code
+
+By the time you edit a file you should be able to state four things: the exact symptom, the boundary it lives inside, the mechanism, and the observation that would have proved you wrong and did not appear.
+
+If you cannot state the mechanism — not "something with timing" but *which* two things race and in what order — you do not have a fix, you have a mitigation. Mitigations are sometimes the correct call under pressure. Just label them honestly in the commit message, because the next person will read a confident message and assume the cause was understood.
+
+## Log the input, not the branch
+
+Everything above depends on evidence existing at the moment the failure happened. That is an observability problem, and most logging fails at it in the same specific way: it records that a decision was made and discards the data that made it.
+
+```text title="Illustrative — the same event, logged two ways"
+# useless
+INFO  PlaybackDecision - falling back to default content
+
+# useful
+INFO  PlaybackDecision - fallback corr=8f21c4 account=42 device=1173
+      reason=NO_ACTIVE_SLOT now=2026-01-18T09:14:02+05:30 tz=Asia/Kolkata
+      slots_considered=3 nearest_start=2026-01-18T10:00:00+05:30
+      playlist=p-88 rev=14 cache_age_s=612
+```
+
+The first line tells you the branch was taken. You already knew that — the screen is showing default content, that is why there is a ticket. It answers a question nobody asked.
+
+The second tells you *why* the branch was taken, and it contains the bug. Three slots were considered, none active at 09:14 local, nearest starting at 10:00. If the expected slot was supposed to run at 09:00, the offset in that comparison is doing something wrong, and you can see it without reproducing anything.
+
+The rule: when you log a decision, log the inputs it was computed from. Not the whole object. The specific fields the branch compared.
+
+```java title="Illustrative"
+if (activeSlot == null) {
+    log.info("fallback corr={} device={} reason={} now={} tz={} slots={} nearest={}",
+        correlationId, deviceId, "NO_ACTIVE_SLOT",
+        now, zone, slots.size(),
+        slots.stream().findFirst().map(Slot::getStart).orElse(null));
+    return defaultContent();
+}
+```
+
+### Carry a correlation ID across the whole request
+
+One identifier generated at the edge, put into the logging context, included in every line for that request. Without one, correlating a device-side event with a server-side event means matching timestamps by eye across clocks that disagree. With one, it is a text search.
+
+Two details make it work. Return it to the client in a response header so a user report can carry it. And propagate it into asynchronous work, because that is where it silently gets dropped and where the interesting failures live.
+
+### Log the rejection, not just the acceptance
+
+Success paths get logged because you write them first. Rejections — validation failures, auth denials, empty result sets, parse fallbacks — are the quiet branches, and they are where the debugging information lives. Log what was rejected and which rule rejected it. A log saying a token was invalid is nearly worthless; one saying the signature verified but the `nonce` did not match points at exactly one thing.
+
+## Debugging what you cannot reach
+
+Backend debugging has a fast loop: add a log line, redeploy, reproduce, read. Minutes.
+
+Devices in the field do not work like that. A player update goes through a release cycle, the device picks it up on its own schedule, and some of those screens are in places where nobody will power-cycle anything for you. You effectively get one shot per cycle. On the backend, an extra iteration costs little, so guessing is cheap. On a device an iteration can cost a release, so it is rational to think much longer before shipping, and to log more than feels necessary.
+
+For anything I cannot reach, I add logging for the hypothesis I am testing *and* for the two I would fall back to if it dies. On the backend that would be noise. In the field it is the difference between learning something this cycle and learning nothing.
+
+The same logic favours a diagnostic surface that needs no code change at all: a way to report device-side state on demand — app version, clock and timezone, storage headroom, last successful sync, what it believes it should be playing. A bug you can answer from existing telemetry costs nothing. A bug that needs a new log line costs a release.
+
+<Callout type="gotcha">
+Device clocks drift and are sometimes set to the wrong year entirely. Any reasoning of the form "the device logged this before the server logged that" is unsafe unless both sides share an identifier. This is another argument for correlation IDs: they survive clock skew, and timestamps do not.
+</Callout>
+
+## Where intuition actually helps
+
+None of this is an argument against experience. After a while you do look at a symptom and think *timezone*, and you are right a lot.
+
+But there are two jobs here and intuition is only good at one. It is good at **ordering** — picking which piece of evidence to gather first out of the twenty you could gather. That ordering is most of your speed, and a senior engineer beating you to the cause is usually doing this rather than skipping steps.
+
+It is bad as a **substitute** for gathering. The moment "I think it is the timezone" becomes "it is the timezone" with no log line in between, you have stopped debugging. The hunch was worth one cheap check, not a code change.
+
+So the test, before the edit: what would you accept as proof that you are wrong? If you cannot name it, you are not debugging. You are betting, and production is where those bets get settled in front of other people.
