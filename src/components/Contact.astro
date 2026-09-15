@@ -19,6 +19,9 @@ import { site, socials } from '../data/site';
       <a class="btn btn-primary" href={`mailto:${site.email}`}>
         <Icon name="mail" /> {site.email}
       </a>
+      <a class="btn btn-secondary" href={`tel:${site.phone}`}>
+        <Icon name="phone" /> {site.phoneDisplay}
+      </a>
       <a class="btn btn-secondary" href={site.resume} download>
         <Icon name="download" /> Download résumé
       </a>

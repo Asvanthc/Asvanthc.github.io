@@ -24,6 +24,9 @@ export const site = {
     'AI Engineering',
   ],
   email: 'asvanthc@gmail.com',
+  /** E.164 for the tel: href; `phoneDisplay` is what people actually read. */
+  phone: '+918610497921',
+  phoneDisplay: '+91 86104 97921',
   resume: '/asv_c/resume.pdf',
 } as const;
 
@@ -31,6 +34,7 @@ export const socials = [
   { label: 'GitHub', href: 'https://github.com/asvanthc', handle: '@asvanthc', icon: 'github' },
   { label: 'LinkedIn', href: 'https://www.linkedin.com/in/asvanth/', handle: 'in/asvanth', icon: 'linkedin' },
   { label: 'Email', href: `mailto:${site.email}`, handle: site.email, icon: 'mail' },
+  { label: 'Phone', href: `tel:${site.phone}`, handle: site.phoneDisplay, icon: 'phone' },
 ] as const;
 
 export const nav = [
