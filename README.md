@@ -28,6 +28,7 @@ npm run preview    # serve dist/ locally
 | `npm run build` | `astro check` (type-check) then `astro build`. This is what CI runs. |
 | `npm run build:fast` | Build without the type-check, for a quick look. |
 | `npm run preview` | Serve `dist/` on the local network. |
+| `npm run resume` | Re-render the résumé PDF from `resume/resume.html`. |
 
 ---
 
@@ -131,6 +132,36 @@ What I originally believed, before I understood it properly.
 
 Code fences are highlighted by [Expressive Code](https://expressive-code.com) and follow the
 site theme in both light and dark mode.
+
+---
+
+## The résumé
+
+`public/asv_c/resume.pdf` is generated, not hand-maintained. Edit the content in
+[`resume/resume.html`](resume/resume.html) and run:
+
+```bash
+npm run resume
+```
+
+This drives whatever Chrome or Chromium is already installed (set `CHROME_PATH` if it
+isn't found) — no headless-browser dependency for a file that changes a few times a year.
+
+Two constraints worth knowing before editing:
+
+- **It must stay one page.** The build prints the page count; check it after any content
+  change. `body { zoom }` in the stylesheet is the single lever for fitting — everything
+  else is sized in absolute `pt`.
+- **It must stay machine-readable.** Applicant tracking systems parse the text layer, so:
+  one column, no text baked into images, conventional section headings, and every skills
+  label ends in a colon so `Languages: Java, JavaScript` survives being flattened to plain
+  text. The fonts in `resume/fonts/` are *static* instances rather than the variable woff2
+  the website uses — Chrome rasterises variable fonts into Type 3 glyphs when printing, and
+  Type 3 is the one font type some parsers cannot extract text from. Regenerate them with
+  `python3 resume/fonts/build.py` (needs `fonttools`) only if the source fonts change.
+
+To sanity-check a change: `pdffonts` should report **CID TrueType** (never Type 3), and
+`pdftotext public/asv_c/resume.pdf -` should read back cleanly.
 
 ---
 

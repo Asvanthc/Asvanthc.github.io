@@ -13,7 +13,8 @@
     "build": "astro check && astro build",
     "build:fast": "astro build",
     "preview": "astro preview --host",
-    "astro": "astro"
+    "astro": "astro",
+    "resume": "node resume/build.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",

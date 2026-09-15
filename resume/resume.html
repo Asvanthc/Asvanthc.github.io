@@ -1,0 +1,445 @@
+<!doctype html>
+<!--
+  Source for public/asv_c/resume.pdf. Regenerate with `npm run resume`.
+
+  Design constraints, in priority order:
+   1. An applicant tracking system must be able to read it. That means one
+      column, real text (never text baked into an image), conventional section
+      headings, and a DOM order that linearises correctly. Every label ends in a
+      colon so "Languages: Java, JavaScript" survives being flattened to plain text.
+   2. A human should want to read it. Hence the typographic care.
+   3. It should look like it belongs to asvanthc.github.io — same typefaces,
+      same accent, same restraint.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Chrome uses <title> as the PDF's Title metadata. -->
+    <title>Asvanth C — Software Engineer — Résumé</title>
+    <meta name="author" content="Asvanth C" />
+    <meta
+      name="description"
+      content="Résumé of Asvanth C, Software Engineer at Zeetaminds — backend systems, identity and access management, and device platform engineering."
+    />
+
+    <style>
+      /*
+       * Static instances, not the variable woff2 the website uses.
+       * Chrome rasterises a variable font into Type 3 glyph procedures when
+       * printing, and Type 3 is the one font type some applicant tracking
+       * systems fail to extract text from. Static TTFs embed as CID TrueType,
+       * which every extractor handles. Regenerate with resume/fonts/build.py.
+       */
+      @font-face {
+        font-family: 'Inter';
+        src: url('fonts/Inter-400.ttf') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'Inter';
+        src: url('fonts/Inter-600.ttf') format('truetype');
+        font-weight: 500 620;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'Inter';
+        src: url('fonts/Inter-680.ttf') format('truetype');
+        font-weight: 621 900;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: url('fonts/JetBrainsMono-400.ttf') format('truetype');
+        font-weight: 400 600;
+        font-style: normal;
+        font-display: block;
+      }
+
+      :root {
+        --ink: #14161a;
+        --ink-soft: #3c4149;
+        --ink-faint: #6b727c;
+        --accent: #3f4ab8;
+        --rule: #d8dbe0;
+        --rule-soft: #e8eaee;
+      }
+
+      @page {
+        size: A4;
+        margin: 11mm 12mm 10mm;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      html {
+        font-size: 9.1pt;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: var(--ink-soft);
+        line-height: 1.42;
+        -webkit-font-smoothing: antialiased;
+        font-variant-numeric: tabular-nums;
+        /*
+         * Single lever for fitting one page. Everything below is sized in pt, so
+         * zoom is the only thing that scales the whole document uniformly —
+         * unlike `transform: scale`, zoom reflows, so the page break moves with it.
+         * Re-check the page count after any content edit: `npm run resume`.
+         */
+        zoom: 0.98;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      /* ---------- Header ---------------------------------------------- */
+      .name {
+        font-size: 23pt;
+        font-weight: 680;
+        letter-spacing: -0.035em;
+        color: var(--ink);
+        line-height: 1.02;
+      }
+
+      .role {
+        font-size: 11pt;
+        font-weight: 550;
+        color: var(--accent);
+        letter-spacing: -0.008em;
+        margin-top: 2.5pt;
+      }
+
+      .contact {
+        margin-top: 6pt;
+        font-size: 8.6pt;
+        color: var(--ink-faint);
+        line-height: 1.7;
+      }
+
+      .contact .sep {
+        color: var(--rule);
+        margin: 0 5pt;
+      }
+
+      .contact a:hover {
+        color: var(--accent);
+      }
+
+      .rule-top {
+        border-top: 1.6pt solid var(--accent);
+        margin-top: 7pt;
+      }
+
+      /* ---------- Summary ---------------------------------------------- */
+      .summary {
+        margin-top: 8pt;
+        font-size: 9pt;
+        color: var(--ink-soft);
+        line-height: 1.5;
+      }
+
+      /* ---------- Sections --------------------------------------------- */
+      section {
+        margin-top: 7.5pt;
+        /* Never orphan a heading at the foot of a page. */
+        break-inside: auto;
+      }
+
+      h2 {
+        font-size: 8.2pt;
+        font-weight: 680;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--ink);
+        padding-bottom: 3pt;
+        border-bottom: 0.8pt solid var(--rule);
+        margin-bottom: 6pt;
+        break-after: avoid;
+      }
+
+      /* ---------- Entry header (role / project / degree) ---------------- */
+      .entry {
+        break-inside: avoid;
+      }
+
+      .entry + .entry {
+        margin-top: 7pt;
+      }
+
+      .entry-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10pt;
+      }
+
+      .entry-title {
+        font-size: 9.9pt;
+        font-weight: 620;
+        color: var(--ink);
+        letter-spacing: -0.012em;
+      }
+
+      .entry-org {
+        font-weight: 500;
+        color: var(--ink-soft);
+      }
+
+      .entry-meta {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 8pt;
+        color: var(--ink-faint);
+        white-space: nowrap;
+        letter-spacing: -0.01em;
+      }
+
+      .entry-context {
+        font-size: 8.6pt;
+        color: var(--ink-faint);
+        margin-top: 2pt;
+        line-height: 1.45;
+      }
+
+      /* ---------- Bullets ----------------------------------------------- */
+      ul {
+        list-style: none;
+        padding: 0;
+        margin-top: 4pt;
+      }
+
+      li {
+        position: relative;
+        padding-left: 10pt;
+        margin-top: 2.8pt;
+        font-size: 8.9pt;
+        line-height: 1.4;
+      }
+
+      li::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 5.6pt;
+        width: 3pt;
+        height: 3pt;
+        border-radius: 50%;
+        background: var(--accent);
+        opacity: 0.55;
+      }
+
+      li strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      /* ---------- Skills grid ------------------------------------------- */
+      .skills {
+        display: grid;
+        grid-template-columns: 74pt 1fr;
+        gap: 3.4pt 10pt;
+        font-size: 9pt;
+      }
+
+      .skills dt {
+        font-weight: 600;
+        color: var(--ink);
+        font-size: 8.6pt;
+        padding-top: 0.4pt;
+      }
+
+      .skills dd {
+        margin: 0;
+        color: var(--ink-soft);
+      }
+
+      /* ---------- Small print ------------------------------------------- */
+      .note {
+        font-size: 8.8pt;
+        line-height: 1.45;
+      }
+
+      .note + .note {
+        margin-top: 4pt;
+      }
+
+      .mono {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 8.4pt;
+        color: var(--ink-faint);
+      }
+
+      .accent-link {
+        color: var(--accent);
+        font-weight: 500;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1 class="name">Asvanth C</h1>
+      <p class="role">Software Engineer</p>
+      <p class="contact">
+        Coimbatore, Tamil Nadu, India<span class="sep">·</span
+        ><a href="mailto:asvanthc@gmail.com">asvanthc@gmail.com</a><span class="sep">·</span
+        ><a href="tel:+918610497921">+91 86104 97921</a><br />
+        <a href="https://asvanthc.github.io">asvanthc.github.io</a><span class="sep">·</span
+        ><a href="https://github.com/asvanthc">github.com/asvanthc</a><span class="sep">·</span
+        ><a href="https://www.linkedin.com/in/asvanth/">linkedin.com/in/asvanth</a>
+      </p>
+      <div class="rule-top"></div>
+    </header>
+
+    <p class="summary">
+      Software engineer with two years of production experience at a digital signage company,
+      working across three layers of the same product: backend services in Java and the Play
+      Framework, the OAuth 2.0 and OpenID Connect identity layer that guards them, and the player
+      software running on Samsung, LG and Android displays in the field.
+    </p>
+
+    <section>
+      <h2>Experience</h2>
+
+      <div class="entry">
+        <div class="entry-head">
+          <p class="entry-title">Software Engineer <span class="entry-org">· Zeetaminds</span></p>
+          <p class="entry-meta">Aug 2024 – Present · Coimbatore, India</p>
+        </div>
+        <p class="entry-context">
+          Digital signage platform: a content management system that schedules and delivers media to
+          displays running in retail, offices, campuses and public spaces.
+        </p>
+        <ul>
+          <li>
+            <strong>Backend.</strong> Build and extend REST APIs in Java on the Play Framework, using
+            Guice for dependency injection and MyBatis over a relational schema, serving both the
+            management web client and the device agents in the field.
+          </li>
+          <li>
+            <strong>Identity and access management.</strong> Work on OAuth 2.0 and OpenID Connect
+            flows — Authorization Code with PKCE, token exchange and single sign-on — and on JWT
+            verification: RS256 signatures, JWKS key distribution, issuer, audience and expiry
+            validation, refresh and session lifetime, login CSRF protection via state, and nonce.
+          </li>
+          <li>
+            <strong>Device platforms.</strong> Build and debug the JavaScript player application
+            running on Samsung Tizen (SSSP), LG webOS and Android signage devices, behind a thin
+            platform abstraction with a separate implementation per vendor.
+          </li>
+          <li>
+            <strong>Media playback.</strong> Diagnose playback failures across container, codec,
+            profile and level, and hardware decoder limits, including silent failures where a device
+            reports no error and renders black.
+          </li>
+          <li>
+            <strong>Device management.</strong> Work on remote control, snapshots and live view,
+            using acknowledged commands and explicit timeouts against devices whose state drifts
+            continuously.
+          </li>
+          <li>
+            <strong>Web client and compatibility.</strong> Contribute features to the Angular and
+            TypeScript management client, and design API changes to be additive and backward
+            compatible: devices in the field run mixed firmware and cannot be assumed to update.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>Projects</h2>
+
+      <div class="entry">
+        <div class="entry-head">
+          <p class="entry-title">Portfolio Dashboard</p>
+          <p class="entry-meta">Node.js · Express · React · Vite</p>
+        </div>
+        <ul>
+          <li>
+            Replaced a spreadsheet with a dashboard served by an Express JSON API. Rewrote price
+            fetching to be bulk-first across a tiered provider fallback chain after the original
+            per-ticker approach was rate-limited into failing, with cache lifetimes matched to how
+            quickly each source actually changes.
+          </li>
+        </ul>
+      </div>
+
+      <div class="entry">
+        <div class="entry-head">
+          <p class="entry-title">Personal site and engineering notes</p>
+          <p class="entry-meta">Astro · MDX · GitHub Actions</p>
+        </div>
+        <p class="entry-context">
+          Ten long-form engineering notes on OAuth 2.0 and OpenID Connect, JWT verification, media
+          playback across device platforms and production debugging — asvanthc.github.io/writing
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Skills</h2>
+      <dl class="skills">
+        <dt>Languages:</dt>
+        <dd>Java, JavaScript, TypeScript, SQL, Python, C/C++</dd>
+
+        <dt>Backend:</dt>
+        <dd>Play Framework, REST API design, MyBatis, Guice, Node.js, Express</dd>
+
+        <dt>Identity:</dt>
+        <dd>
+          OAuth 2.0, OpenID Connect, Authorization Code with PKCE, JWT, RS256, JWKS, SSO, session and
+          token lifecycle
+        </dd>
+
+        <dt>Web:</dt>
+        <dd>Angular, TypeScript, HTML, CSS, browser APIs, embedded web runtimes</dd>
+
+        <dt>Platforms:</dt>
+        <dd>Samsung Tizen (SSSP), LG webOS, Android, Linux</dd>
+
+        <dt>Data &amp; tools:</dt>
+        <dd>MySQL, schema and query design, MongoDB, Git, Gradle, Maven, Nginx</dd>
+
+        <dt>Learning:</dt>
+        <dd>Docker, CI/CD, LLM APIs and tool calling, RAG, distributed systems</dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Education</h2>
+      <div class="entry">
+        <div class="entry-head">
+          <p class="entry-title">
+            B.Tech, Computer Science and Engineering
+            <span class="entry-org">· Amrita Vishwa Vidyapeetham</span>
+          </p>
+          <p class="entry-meta">2020 – 2024 · GPA 8.18/10</p>
+        </div>
+        <p class="entry-context">
+          Coimbatore, Tamil Nadu. Coursework in data structures and algorithms, operating systems,
+          databases, computer networks, distributed computing, computer architecture, and
+          cryptography and network security.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Certifications</h2>
+      <p class="note">
+        21 edX certificates (2019–2022) from AWS, IBM, The Linux Foundation, Columbia University and
+        the University of Washington — cloud development, containers and Kubernetes, data science
+        and cybersecurity. Credential IDs at
+        <a class="accent-link" href="https://asvanthc.github.io/#timeline">asvanthc.github.io</a>.
+      </p>
+    </section>
+  </body>
+</html>
